@@ -1,0 +1,63 @@
+{
+  "_comment": "Mock Etherscan response for a normal, low-risk wallet.",
+  "balance": {
+    "status": "1",
+    "message": "OK",
+    "result": "1500000000000000000"
+  },
+  "transactions": {
+    "status": "1",
+    "message": "OK",
+    "result": [
+      {
+        "blockNumber": "17000000",
+        "timeStamp": "1682000000",
+        "hash": "0xabc1230000000000000000000000000000000000000000000000000000000001",
+        "nonce": "10",
+        "blockHash": "0xblockhash0000000000000000000000000000000000000000000000000000001",
+        "transactionIndex": "5",
+        "from": "0xde0b295669a9fd93d5f28d9ec85e40f4cb697bae",
+        "to": "0xa090e606e30bd747d4e6245a1517ebe430f0057e",
+        "value": "500000000000000000",
+        "gas": "21000",
+        "gasPrice": "20000000000",
+        "isError": "0",
+        "txreceipt_status": "1",
+        "input": "0x",
+        "contractAddress": "",
+        "cumulativeGasUsed": "105000",
+        "gasUsed": "21000",
+        "confirmations": "1000",
+        "methodId": "0x",
+        "functionName": ""
+      },
+      {
+        "blockNumber": "17100000",
+        "timeStamp": "1682100000",
+        "hash": "0xabc1230000000000000000000000000000000000000000000000000000000002",
+        "nonce": "11",
+        "blockHash": "0xblockhash0000000000000000000000000000000000000000000000000000002",
+        "transactionIndex": "3",
+        "from": "0x71660c4005ba85c37ccec55d0c4493e66fe775d3",
+        "to": "0xde0b295669a9fd93d5f28d9ec85e40f4cb697bae",
+        "value": "200000000000000000",
+        "gas": "21000",
+        "gasPrice": "15000000000",
+        "isError": "0",
+        "txreceipt_status": "1",
+        "input": "0x",
+        "contractAddress": "",
+        "cumulativeGasUsed": "63000",
+        "gasUsed": "21000",
+        "confirmations": "900",
+        "methodId": "0x",
+        "functionName": ""
+      }
+    ]
+  },
+  "token_transfers": {
+    "status": "1",
+    "message": "OK",
+    "result": []
+  }
+}

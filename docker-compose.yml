@@ -1,0 +1,41 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Single-Agent Blockchain Investigator — docker-compose.yml
+#
+# Development compose file. Mounts source code for live reload.
+# Production: build a proper image instead of using volumes.
+# ─────────────────────────────────────────────────────────────────────────────
+
+version: "3.9"
+
+services:
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: blockchain-investigator-api
+    ports:
+      - "8000:8000"
+    volumes:
+      # Source mount for development hot-reload
+      - .:/app
+      # Named volume for persistent SQLite DB across container restarts
+      - db_data:/app/data
+    env_file:
+      - .env
+    environment:
+      # Override reload for container dev mode
+      API_RELOAD: "true"
+      API_HOST: "0.0.0.0"
+      API_PORT: "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  db_data:
+    driver: local
