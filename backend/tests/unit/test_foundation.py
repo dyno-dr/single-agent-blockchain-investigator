@@ -37,7 +37,7 @@ class TestSettings:
 
         from backend.settings.base import TraceScoringWeights
 
-        with pytest.raises(ValidationError, match="must sum to 1.0"):
+        with pytest.raises(ValidationError, match=r"must sum to 1\.0"):
             TraceScoringWeights(value=0.5, recency=0.5, novelty=0.5, rule=0.5)
 
     def test_cors_origins_from_comma_string(self):

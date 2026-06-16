@@ -39,7 +39,7 @@ DESIGN DECISIONS:
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 import structlog
@@ -54,7 +54,7 @@ logger = structlog.get_logger(__name__)
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-class PruneDecision(str, Enum):
+class PruneDecision(StrEnum):
     """
     Result of a single PruningEngine.evaluate() call.
 

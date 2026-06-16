@@ -25,7 +25,7 @@ FUTURE SCALABILITY:
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Type Aliases (semantic clarity; not enforced at runtime)
@@ -58,7 +58,7 @@ HEALTH_DOWN = "down"
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-class InvestigationStatus(str, Enum):
+class InvestigationStatus(StrEnum):
     """Lifecycle states for an investigation session."""
 
     PENDING = "PENDING"
@@ -67,7 +67,7 @@ class InvestigationStatus(str, Enum):
     FAILED = "FAILED"
 
 
-class Phase(str, Enum):
+class Phase(StrEnum):
     """
     LangGraph agent node phases.
     Maps directly to node names in agent/graph.py.
@@ -90,7 +90,7 @@ class Phase(str, Enum):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-class RiskLevel(str, Enum):
+class RiskLevel(StrEnum):
     """
     Investigation risk level output.
     Maps to risk_score thresholds in RiskScorer.
@@ -102,7 +102,7 @@ class RiskLevel(str, Enum):
     CRITICAL = "CRITICAL"
 
 
-class Severity(str, Enum):
+class Severity(StrEnum):
     """
     Forensic rule finding severity.
     Maps to severity_weight in RiskScorer.
@@ -119,7 +119,7 @@ class Severity(str, Enum):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-class RuleCategory(str, Enum):
+class RuleCategory(StrEnum):
     """Forensic rule classification for grouping in reports."""
 
     TRANSFER_PATTERN = "TRANSFER_PATTERN"
@@ -133,7 +133,7 @@ class RuleCategory(str, Enum):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-class TransactionDirection(str, Enum):
+class TransactionDirection(StrEnum):
     """Direction of a transaction relative to the target wallet."""
 
     INCOMING = "INCOMING"
@@ -141,7 +141,7 @@ class TransactionDirection(str, Enum):
     INTERNAL = "INTERNAL"
 
 
-class TransactionType(str, Enum):
+class TransactionType(StrEnum):
     """Transaction type classification."""
 
     TRANSFER = "TRANSFER"
@@ -154,7 +154,7 @@ class TransactionType(str, Enum):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-class PruningDecision(str, Enum):
+class PruningDecision(StrEnum):
     """
     Per-hop decision made by the PruningEngine.
 
@@ -170,7 +170,7 @@ class PruningDecision(str, Enum):
     SAMPLE = "SAMPLE"
 
 
-class TraceStrategy(str, Enum):
+class TraceStrategy(StrEnum):
     """
     Layer 2 trace strategy selected by PLANNER node.
     Constrained enum — LLM must choose from this set (no free-form strings).
@@ -183,7 +183,7 @@ class TraceStrategy(str, Enum):
     SKIP = "SKIP"
 
 
-class EntityType(str, Enum):
+class EntityType(StrEnum):
     """Graph node entity classification from known_entities.json."""
 
     KNOWN_CEX = "known_cex"
@@ -198,7 +198,7 @@ class EntityType(str, Enum):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-class WsEventType(str, Enum):
+class WsEventType(StrEnum):
     """
     WebSocket event type identifiers.
     Every server→client message carries one of these type values.
@@ -225,7 +225,7 @@ class WsEventType(str, Enum):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-class ActionType(str, Enum):
+class ActionType(StrEnum):
     """Reasoning log step classification for the MEMORY node."""
 
     TOOL_CALL = "TOOL_CALL"
@@ -239,7 +239,7 @@ class ActionType(str, Enum):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-class GraphRendererMode(str, Enum):
+class GraphRendererMode(StrEnum):
     """
     Renderer mode hint returned with graph API response.
     Frontend uses this instead of computing thresholds client-side,
@@ -279,7 +279,7 @@ ALL_RULE_IDS: tuple[str, ...] = (
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-class Chain(str, Enum):
+class Chain(StrEnum):
     """
     Supported blockchain networks.
     Phase 1: ETHEREUM only.
@@ -296,7 +296,7 @@ class Chain(str, Enum):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-class ErrorCode(str, Enum):
+class ErrorCode(StrEnum):
     """Structured error codes for programmatic error handling."""
 
     ETHERSCAN_UNREACHABLE = "ETHERSCAN_UNREACHABLE"
