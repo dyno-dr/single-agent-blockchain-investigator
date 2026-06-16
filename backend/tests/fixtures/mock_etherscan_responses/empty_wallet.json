@@ -1,0 +1,18 @@
+{
+  "_comment": "Mock Etherscan response for a wallet with no transactions (new/empty wallet).",
+  "balance": {
+    "status": "1",
+    "message": "OK",
+    "result": "0"
+  },
+  "transactions": {
+    "status": "0",
+    "message": "No transactions found",
+    "result": []
+  },
+  "token_transfers": {
+    "status": "0",
+    "message": "No transactions found",
+    "result": []
+  }
+}

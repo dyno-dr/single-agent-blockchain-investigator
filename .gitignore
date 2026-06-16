@@ -1,0 +1,85 @@
+# ─────────────────────────────────────────────────────────────
+# Single-Agent Blockchain Investigator — .gitignore
+# ─────────────────────────────────────────────────────────────
+
+# ── Secrets ───────────────────────────────────────────────────
+.env
+*.key
+*.pem
+
+# ── Python ────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+pip-wheel-metadata/
+
+# ── Testing ───────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+*.cover
+
+# ── Type checking ─────────────────────────────────────────────
+.mypy_cache/
+.dmypy.json
+
+# ── Database ──────────────────────────────────────────────────
+data/investigations.db
+data/investigations.db-shm
+data/investigations.db-wal
+*.db
+*.sqlite
+*.sqlite3
+
+# ── IDE ───────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── Logs ──────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Node / Frontend ───────────────────────────────────────────
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Environment
+.env
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Coverage
+.coverage
+htmlcov/
+
+# Local database
+data/investigations.db
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
