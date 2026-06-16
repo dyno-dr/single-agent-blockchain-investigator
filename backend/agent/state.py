@@ -79,7 +79,7 @@ class AgentState(TypedDict):
     trace_strategy: str                 # TraceStrategy enum value
     planner_reasoning: str
     trace_directive: dict[str, Any]
-    
+
     # ── Report ────────────────────────────────────────────────────────────────
     report_title: str
     report_summary: str
@@ -128,7 +128,6 @@ def make_initial_state(
     Returns:
         Fully initialised AgentState ready to enter the graph.
     """
-    from backend.utils import utc_now_iso
 
     return AgentState(
         investigation_id=investigation_id,

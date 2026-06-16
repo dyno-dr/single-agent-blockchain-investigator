@@ -1,7 +1,9 @@
 """RULE-005: Activity Burst Detection."""
 from __future__ import annotations
+
 from collections import defaultdict
 from typing import Any
+
 from backend.blockchain.models import WalletProfile
 from backend.forensics.base_rule import BaseForensicRule
 from backend.forensics.models import RuleResult

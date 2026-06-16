@@ -4,10 +4,12 @@ Repository for the evidence table.
 """
 
 from __future__ import annotations
-import structlog
-import uuid
+
 from typing import Any
-import aiosqlite
+import uuid
+
+import structlog
+
 from backend.persistence.repositories.base import BaseRepository
 
 logger = structlog.get_logger(__name__)

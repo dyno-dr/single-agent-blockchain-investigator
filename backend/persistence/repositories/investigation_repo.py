@@ -38,11 +38,10 @@ DESIGN DECISIONS:
 
 from __future__ import annotations
 
-import structlog
-import uuid
 from typing import Any
+import uuid
 
-import aiosqlite
+import structlog
 
 from backend.persistence.repositories.base import BaseRepository
 
@@ -387,14 +386,14 @@ class InvestigationRepository(BaseRepository):
     ) -> dict[str, Any] | None:
         """
         Update only the `phase` field of an investigation.
- 
+
         Called by the background pipeline to update the current agent phase
         without changing the status or timestamps.
- 
+
         Args:
             investigation_id: UUID of the investigation.
             phase:            Phase enum value string (e.g. "TX_FETCH", "DONE").
- 
+
         Returns:
             Updated investigation dict, or None if ID not found.
         """
@@ -404,7 +403,7 @@ class InvestigationRepository(BaseRepository):
         )
         await self._conn.commit()
         return await self.get(investigation_id)
- 
+
     async def list_by_status(
         self,
         status: str,
@@ -414,12 +413,12 @@ class InvestigationRepository(BaseRepository):
     ) -> list[dict[str, Any]]:
         """
         List investigations filtered by status, newest first.
- 
+
         Args:
             status: InvestigationStatus value (PENDING|RUNNING|COMPLETE|FAILED).
             limit:  Max rows to return.
             offset: Pagination offset.
- 
+
         Returns:
             List of investigation dicts.
         """
@@ -433,19 +432,19 @@ class InvestigationRepository(BaseRepository):
             (status, limit, offset),
         ) as cursor:
             rows = await cursor.fetchall()
- 
+
         results = self._rows_to_dicts(rows)
         for r in results:
             r["reasoning_log"] = self._load_json(r.get("reasoning_log"))
         return results
- 
+
     async def count_by_status(self, status: str) -> int:
         """
         Count investigations with the given status.
- 
+
         Args:
             status: InvestigationStatus value to filter by.
- 
+
         Returns:
             Integer count.
         """
@@ -455,14 +454,14 @@ class InvestigationRepository(BaseRepository):
         ) as cursor:
             row = await cursor.fetchone()
         return row[0] if row else 0
- 
+
     async def count_by_wallet(self, wallet_address: str) -> int:
         """
         Count investigations for a specific wallet address.
- 
+
         Args:
             wallet_address: Ethereum address (lowercase).
- 
+
         Returns:
             Integer count.
         """
@@ -472,7 +471,7 @@ class InvestigationRepository(BaseRepository):
         ) as cursor:
             row = await cursor.fetchone()
         return row[0] if row else 0
- 
+
     async def update_status(
         self,
         investigation_id: str,
@@ -486,7 +485,7 @@ class InvestigationRepository(BaseRepository):
         Update status (and optionally phase and risk) of an investigation.
         Overrides the base update_status to also accept risk_score/risk_level
         so the background pipeline can complete the investigation in one call.
- 
+
         NOTE: This replaces the existing update_status in investigation_repo.py.
         If you want a clean additive change, keep the original update_status
         and add a separate update_status_with_risk method. The version shown
@@ -494,7 +493,7 @@ class InvestigationRepository(BaseRepository):
         compatible since all new args have defaults).
         """
         now = self._utc_now()
- 
+
         if risk_score is not None and risk_level is not None:
             await self._conn.execute(
                 """
@@ -521,6 +520,6 @@ class InvestigationRepository(BaseRepository):
                 """,
                 (status, phase, status, now, status, now, investigation_id),
             )
- 
+
         await self._conn.commit()
         return await self.get(investigation_id)

@@ -16,6 +16,7 @@ All tests mock httpx.AsyncClient — no real Etherscan calls made.
 
 from __future__ import annotations
 
+from datetime import UTC
 import json
 from pathlib import Path
 from typing import Any
@@ -257,6 +258,7 @@ class TestEtherscanClientErrorPaths:
 
     async def test_network_timeout_raises_etherscan_exception(self):
         import httpx
+
         from backend.exceptions import EtherscanException
         http = AsyncMock()
         http.get.side_effect = httpx.TimeoutException("timeout")
@@ -266,6 +268,7 @@ class TestEtherscanClientErrorPaths:
 
     async def test_network_error_raises_etherscan_exception(self):
         import httpx
+
         from backend.exceptions import EtherscanException
         http = AsyncMock()
         http.get.side_effect = httpx.NetworkError("connection refused")
@@ -343,8 +346,8 @@ class TestBlockchainModels:
         assert r.result == []
 
     def test_clean_transaction_is_frozen(self):
-        from backend.blockchain.normalizer import normalize_transaction
         from backend.blockchain.models import RawEtherscanTransaction
+        from backend.blockchain.normalizer import normalize_transaction
         raw = RawEtherscanTransaction(
             blockNumber="17000000", timeStamp="1682000000",
             hash="0x" + "a" * 64, nonce="0", blockHash="0x" + "b" * 64,
@@ -359,14 +362,15 @@ class TestBlockchainModels:
             tx.hash = "changed"  # type: ignore[misc]
 
     def test_wallet_profile_is_frozen(self):
-        from backend.blockchain.normalizer import normalize_wallet_profile
         from datetime import datetime, timezone
+
+        from backend.blockchain.normalizer import normalize_wallet_profile
         profile = normalize_wallet_profile(
             address=NORMAL_WALLET,
             balance_wei=0,
             raw_transactions=[],
             raw_token_transfers=[],
-            fetched_at=datetime.now(timezone.utc),
+            fetched_at=datetime.now(UTC),
         )
         with pytest.raises(Exception):
             profile.address = "changed"  # type: ignore[misc]
@@ -412,6 +416,7 @@ class TestNormalizer:
 
     def test_timestamp_is_utc_aware_datetime(self):
         from datetime import datetime
+
         from backend.blockchain.normalizer import normalize_transaction
         tx = normalize_transaction(_make_raw_tx(), target_address=NORMAL_WALLET)
         assert isinstance(tx.timestamp, datetime)
@@ -501,9 +506,10 @@ class TestNormalizer:
         assert tx.tx_type == "TRANSFER"
 
     def test_normalize_wallet_profile_basic(self):
-        from backend.blockchain.normalizer import normalize_wallet_profile
-        from backend.blockchain.models import RawEtherscanTransaction
         from datetime import datetime, timezone
+
+        from backend.blockchain.models import RawEtherscanTransaction
+        from backend.blockchain.normalizer import normalize_wallet_profile
 
         fixture = _load_fixture("normal_wallet")
         raw_txs = [RawEtherscanTransaction(**t) for t in fixture["transactions"]["result"]]
@@ -513,7 +519,7 @@ class TestNormalizer:
             balance_wei=int(fixture["balance"]["result"]),
             raw_transactions=raw_txs,
             raw_token_transfers=[],
-            fetched_at=datetime.now(timezone.utc),
+            fetched_at=datetime.now(UTC),
         )
         assert profile.address == NORMAL_WALLET
         assert abs(profile.balance_eth - 1.5) < 1e-9
@@ -522,24 +528,26 @@ class TestNormalizer:
         assert profile.stats.last_tx_timestamp is not None
 
     def test_empty_wallet_profile(self):
-        from backend.blockchain.normalizer import normalize_wallet_profile
         from datetime import datetime, timezone
+
+        from backend.blockchain.normalizer import normalize_wallet_profile
 
         profile = normalize_wallet_profile(
             address=EMPTY_WALLET,
             balance_wei=0,
             raw_transactions=[],
             raw_token_transfers=[],
-            fetched_at=datetime.now(timezone.utc),
+            fetched_at=datetime.now(UTC),
         )
         assert profile.balance_eth == 0.0
         assert profile.stats.total_transactions == 0
         assert profile.stats.first_tx_timestamp is None
 
     def test_stats_incoming_outgoing_counts(self):
-        from backend.blockchain.normalizer import normalize_wallet_profile
-        from backend.blockchain.models import RawEtherscanTransaction
         from datetime import datetime, timezone
+
+        from backend.blockchain.models import RawEtherscanTransaction
+        from backend.blockchain.normalizer import normalize_wallet_profile
 
         fixture = _load_fixture("normal_wallet")
         raw_txs = [RawEtherscanTransaction(**t) for t in fixture["transactions"]["result"]]
@@ -549,7 +557,7 @@ class TestNormalizer:
             balance_wei=0,
             raw_transactions=raw_txs,
             raw_token_transfers=[],
-            fetched_at=datetime.now(timezone.utc),
+            fetched_at=datetime.now(UTC),
         )
         assert profile.stats.outgoing_count == 1
         assert profile.stats.incoming_count == 1

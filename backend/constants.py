@@ -27,7 +27,6 @@ from __future__ import annotations
 
 from enum import Enum
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Type Aliases (semantic clarity; not enforced at runtime)
 # ─────────────────────────────────────────────────────────────────────────────

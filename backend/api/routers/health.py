@@ -46,14 +46,14 @@ FUTURE SCALABILITY:
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 import os
 import sys
-from datetime import datetime, timezone
 from typing import Any
 
-import structlog
 from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
+import structlog
 
 from backend.constants import AGENT_VERSION, HEALTH_DEGRADED, HEALTH_DOWN, HEALTH_OK
 from backend.dependencies import SettingsDep
@@ -65,7 +65,7 @@ router = APIRouter(tags=["Operations"])
 
 # Module-level startup timestamp — set when the router module is first loaded,
 # which happens during application startup.
-_startup_time: datetime = datetime.now(timezone.utc)
+_startup_time: datetime = datetime.now(UTC)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -158,7 +158,7 @@ async def health_check(settings: SettingsDep) -> JSONResponse:
         logger.error("health_check_down", issues=issues, checks=checks)
 
     uptime_seconds = (
-        datetime.now(timezone.utc) - _startup_time
+        datetime.now(UTC) - _startup_time
     ).total_seconds()
 
     payload: dict[str, Any] = {

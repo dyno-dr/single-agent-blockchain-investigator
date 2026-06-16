@@ -44,11 +44,10 @@ FUTURE SCALABILITY:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from backend.constants import ErrorCode
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Root exception
@@ -87,7 +86,7 @@ class BaseApplicationException(Exception):
         self.message: str = message
         self.context: dict[str, Any] = context or {}
         self.cause: BaseException | None = cause
-        self.timestamp: str = datetime.now(timezone.utc).isoformat()
+        self.timestamp: str = datetime.now(UTC).isoformat()
 
     def to_dict(self) -> dict[str, Any]:
         """

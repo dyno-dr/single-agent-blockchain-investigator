@@ -12,19 +12,20 @@ The ForensicsEngine is the single entry point for the detector_node. It:
 
 from __future__ import annotations
 
-import structlog
 from typing import Any
+
+import structlog
 
 from backend.blockchain.models import WalletProfile
 from backend.forensics.base_rule import BaseForensicRule
 from backend.forensics.models import ForensicsReport, RuleResult
-from backend.forensics.rules.large_transfer import LargeTransferRule
-from backend.forensics.rules.rapid_transfer import RapidTransferRule
-from backend.forensics.rules.high_fanout import HighFanOutRule
-from backend.forensics.rules.dormant_activation import DormantActivationRule
 from backend.forensics.rules.activity_burst import ActivityBurstRule
-from backend.forensics.rules.round_numbers import RoundNumbersRule
+from backend.forensics.rules.dormant_activation import DormantActivationRule
+from backend.forensics.rules.high_fanout import HighFanOutRule
+from backend.forensics.rules.large_transfer import LargeTransferRule
 from backend.forensics.rules.new_wallet_interaction import NewWalletInteractionRule
+from backend.forensics.rules.rapid_transfer import RapidTransferRule
+from backend.forensics.rules.round_numbers import RoundNumbersRule
 
 logger = structlog.get_logger(__name__)
 

@@ -6,12 +6,12 @@ aiosqlite database setup, connection management, and lifespan integration.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 import os
-import structlog
 from pathlib import Path
-from typing import AsyncIterator
 
 import aiosqlite
+import structlog
 
 from backend.settings import get_settings
 

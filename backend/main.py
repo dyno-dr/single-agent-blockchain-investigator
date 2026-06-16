@@ -48,19 +48,18 @@ FUTURE SCALABILITY:
 
 from __future__ import annotations
 
-import os
-import sys
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator
-from backend.agent.session_manager import init_session_manager, close_session_manager
+import os
+from typing import Any
 
-from aiolimiter import AsyncLimiter
-import structlog
-import uvicorn
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+import structlog
+import uvicorn
 
+from backend.agent.session_manager import close_session_manager, init_session_manager
 from backend.api.middleware import register_middleware
 from backend.api.routers import health_router
 from backend.constants import AGENT_VERSION
@@ -154,10 +153,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("rate_limiter_initialised",
                 rps=settings.rate_limiter.requests_per_second,
                 burst=settings.rate_limiter.burst_capacity)
- 
+
     # ── Future startup steps ──────────────────────────────────────────────────
     # await init_session_manager(settings)  # agent layer
-    from backend.agent.session_manager import init_session_manager
     init_session_manager()
     logger.info("session_manager_initialised")
     #logger.info("application_ready", status="ok")
@@ -178,7 +176,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # ── Future shutdown steps ─────────────────────────────────────────────────
     # await close_session_manager()
-    from backend.agent.session_manager import close_session_manager
     await close_session_manager()
     logger.info("session_manager_closed")
     #logger.info("application_stopped")
@@ -371,11 +368,11 @@ def _register_routers(app: FastAPI, api_prefix: str) -> None:
     app.include_router(health_router, prefix=api_prefix)
 
      # ── Phase 2 routers ───────────────────────────────────────────────────────
-    from backend.api.routers.investigation import router as investigation_router
-    from backend.api.routers.history import router as history_router
-    from backend.api.routers.report import router as report_router
     from backend.api.routers.graph import router as graph_router
- 
+    from backend.api.routers.history import router as history_router
+    from backend.api.routers.investigation import router as investigation_router
+    from backend.api.routers.report import router as report_router
+
     app.include_router(investigation_router, prefix=api_prefix)
     app.include_router(history_router, prefix=api_prefix)
     app.include_router(report_router, prefix=api_prefix)

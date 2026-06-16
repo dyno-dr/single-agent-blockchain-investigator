@@ -33,8 +33,8 @@ DESIGN DECISIONS:
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 import math
-from datetime import datetime, timezone
 from typing import Any
 
 import structlog
@@ -178,9 +178,9 @@ def _value_layer(value_eth: float, max_value_eth: float) -> float:
 
 def _recency_layer(timestamp: datetime) -> float:
     """Exponential decay: recent txs score closer to 1.0."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if timestamp.tzinfo is None:
-        timestamp = timestamp.replace(tzinfo=timezone.utc)
+        timestamp = timestamp.replace(tzinfo=UTC)
     age_days = max(0.0, (now - timestamp).total_seconds() / 86400.0)
     # half-life of 90 days: score = 2^(-age/half_life)
     return math.pow(2.0, -age_days / _RECENCY_HALF_LIFE_DAYS)

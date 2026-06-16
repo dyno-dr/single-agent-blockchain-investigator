@@ -25,8 +25,8 @@ from __future__ import annotations
 from collections.abc import Generator
 from unittest.mock import AsyncMock, patch
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 from backend.settings import Settings, get_settings
 from backend.settings.base import (
@@ -45,7 +45,6 @@ from backend.settings.base import (
     SessionSettings,
     TraceScoringWeights,
 )
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Settings fixtures

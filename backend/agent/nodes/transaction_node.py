@@ -22,7 +22,6 @@ DESIGN:
 from __future__ import annotations
 
 import datetime as dt
-from datetime import timezone
 from typing import Any
 
 import structlog
@@ -74,8 +73,8 @@ async def transaction_node(state: AgentState) -> dict[str, Any]:
         rate_limiter=rate_limiter,
     )
 
-    now = dt.datetime.now(timezone.utc)
-    days_since_genesis = (now - dt.datetime(2015, 7, 30, tzinfo=timezone.utc)).days
+    now = dt.datetime.now(dt.UTC)
+    days_since_genesis = (now - dt.datetime(2015, 7, 30, tzinfo=dt.UTC)).days
     approx_current_block = days_since_genesis * 6500
     start_block = max(0, approx_current_block - lookback_days * 6500)
     fetch_errors: list[str] = []

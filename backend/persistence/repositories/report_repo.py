@@ -36,11 +36,10 @@ DESIGN DECISIONS:
 
 from __future__ import annotations
 
-import structlog
-import uuid
 from typing import Any
+import uuid
 
-import aiosqlite
+import structlog
 
 from backend.constants import ErrorCode
 from backend.exceptions import RepositoryException

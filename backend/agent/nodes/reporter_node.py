@@ -33,8 +33,8 @@ import structlog
 from backend.agent.state import AgentState, ReasoningStep
 from backend.agent.state_condenser import condense_state
 from backend.forensics.models import ReportContext
-from backend.tools.report_generator import ReportGeneratorTool
 from backend.tools.graph_builder import GraphBuilderTool
+from backend.tools.report_generator import ReportGeneratorTool
 from backend.utils import utc_now_iso
 
 logger = structlog.get_logger(__name__)

@@ -22,7 +22,7 @@ DESIGN DECISIONS:
 
 from __future__ import annotations
 
-from datetime import timezone
+from datetime import UTC
 from typing import Any
 
 import structlog
@@ -103,7 +103,7 @@ class TransactionStatsTool(BaseTool):
             if tx.timestamp:
                 ts = tx.timestamp
                 if ts.tzinfo is None:
-                    ts = ts.replace(tzinfo=timezone.utc)
+                    ts = ts.replace(tzinfo=UTC)
                 timestamps.append(ts)
 
         total_txs = len(transactions)

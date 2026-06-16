@@ -20,8 +20,8 @@ test function — isolation is guaranteed.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
 import uuid
-from typing import AsyncIterator
 
 import aiosqlite
 import pytest
@@ -119,8 +119,9 @@ class TestBaseRepository:
         assert repo._dump_json(None) is None
 
     async def test_dump_json_dict(self, db_conn):
-        from backend.persistence.repositories.base import BaseRepository
         import json
+
+        from backend.persistence.repositories.base import BaseRepository
 
         repo = BaseRepository(db_conn)
         result = repo._dump_json({"key": "value"})

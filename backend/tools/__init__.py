@@ -8,23 +8,23 @@ from `backend.tools`, never from sub-modules directly.
 """
 
 from backend.tools.base import BaseTool
-from backend.tools.wallet_profiler import WalletProfilerTool
-from backend.tools.transaction_fetcher import TransactionFetcherTool
-from backend.tools.transaction_stats import TransactionStatsTool
-from backend.tools.trace_scorer import TraceScorerTool
-from backend.tools.tracing_engine import TracingEngineTool
-from backend.tools.suspicion_detector import SuspicionDetectorTool
 from backend.tools.graph_builder import GraphBuilderTool
 from backend.tools.report_generator import ReportGeneratorTool
+from backend.tools.suspicion_detector import SuspicionDetectorTool
+from backend.tools.trace_scorer import TraceScorerTool
+from backend.tools.tracing_engine import TracingEngineTool
+from backend.tools.transaction_fetcher import TransactionFetcherTool
+from backend.tools.transaction_stats import TransactionStatsTool
+from backend.tools.wallet_profiler import WalletProfilerTool
 
 __all__ = [
     "BaseTool",
-    "WalletProfilerTool",
-    "TransactionFetcherTool",
-    "TransactionStatsTool",
-    "TraceScorerTool",
-    "TracingEngineTool",
-    "SuspicionDetectorTool",
     "GraphBuilderTool",
     "ReportGeneratorTool",
+    "SuspicionDetectorTool",
+    "TraceScorerTool",
+    "TracingEngineTool",
+    "TransactionFetcherTool",
+    "TransactionStatsTool",
+    "WalletProfilerTool",
 ]

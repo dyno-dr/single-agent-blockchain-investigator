@@ -99,7 +99,7 @@ class PruneResult:
         sample_size:  For SAMPLE decisions — how many top edges to keep.
     """
 
-    __slots__ = ("decision", "reason", "entity_type", "entity_label", "sample_size")
+    __slots__ = ("decision", "entity_label", "entity_type", "reason", "sample_size")
 
     def __init__(
         self,

@@ -29,7 +29,6 @@ DESIGN DECISIONS:
 from __future__ import annotations
 
 import datetime as dt
-from datetime import timezone
 from typing import Any
 
 import structlog
@@ -46,7 +45,7 @@ from backend.tools.base import BaseTool
 logger = structlog.get_logger(__name__)
 
 _BLOCKS_PER_DAY = 6500
-_ETH_GENESIS = dt.datetime(2015, 7, 30, tzinfo=timezone.utc)
+_ETH_GENESIS = dt.datetime(2015, 7, 30, tzinfo=dt.UTC)
 
 
 class WalletProfilerTool(BaseTool):
@@ -102,7 +101,7 @@ class WalletProfilerTool(BaseTool):
             rate_limiter=rate_limiter,
         )
 
-        now = dt.datetime.now(timezone.utc)
+        now = dt.datetime.now(dt.UTC)
         start_block = _approx_start_block(lookback_days, now)
         fetch_limit = min(max_transactions, 1000)
         fetch_errors: list[str] = []

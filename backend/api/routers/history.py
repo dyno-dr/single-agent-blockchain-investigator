@@ -13,17 +13,16 @@ from __future__ import annotations
 
 from typing import Annotated
 
-import structlog
+import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+import structlog
 
 from backend.dependencies import AuthDep
 from backend.persistence.database import get_db
 from backend.persistence.repositories import InvestigationRepository
 from backend.schemas.request import PaginationParams
-from backend.schemas.response import InvestigationListResponse, InvestigationResponse
+from backend.schemas.response import InvestigationListResponse
 from backend.utils import is_valid_eth_address
-
-import aiosqlite
 
 logger = structlog.get_logger(__name__)
 

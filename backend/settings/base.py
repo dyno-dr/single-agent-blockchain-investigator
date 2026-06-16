@@ -54,13 +54,12 @@ FUTURE SCALABILITY:
 
 from __future__ import annotations
 
-import os
 from functools import lru_cache
+import os
 from typing import Any
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Sub-models: partitioned by concern
@@ -305,7 +304,7 @@ class TraceScoringWeights(BaseSettings):
     rule: float = Field(default=0.20, ge=0.0, le=1.0)
 
     @model_validator(mode="after")
-    def weights_sum_to_one(self) -> "TraceScoringWeights":
+    def weights_sum_to_one(self) -> TraceScoringWeights:
         total = self.value + self.recency + self.novelty + self.rule
         if abs(total - 1.0) > 0.001:
             raise ValueError(

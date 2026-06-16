@@ -40,12 +40,10 @@ FUTURE SCALABILITY:
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 
 import httpx
 import structlog
-from tenacity import RetryError
 
 from backend.constants import ErrorCode
 from backend.exceptions import EtherscanException

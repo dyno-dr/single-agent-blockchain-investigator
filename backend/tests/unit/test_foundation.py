@@ -13,9 +13,8 @@ Tests:
 
 from __future__ import annotations
 
-import pytest
 from fastapi.testclient import TestClient
-
+import pytest
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Settings tests
@@ -35,6 +34,7 @@ class TestSettings:
 
     def test_trace_weights_invalid_raises(self):
         from pydantic import ValidationError
+
         from backend.settings.base import TraceScoringWeights
 
         with pytest.raises(ValidationError, match="must sum to 1.0"):
@@ -59,8 +59,9 @@ class TestSettings:
 
     def test_database_url_resolves_relative_path(self, test_settings):
         # :memory: is a special SQLite path; test with a relative path instead
-        from backend.settings.base import DatabaseSettings, Settings
         import os
+
+        from backend.settings.base import DatabaseSettings, Settings
 
         s = Settings(
             db=DatabaseSettings(path="data/test.db"),
@@ -196,6 +197,7 @@ class TestUtils:
 
     def test_generate_session_id_is_uuid(self):
         import uuid
+
         from backend.utils import generate_session_id
 
         sid = generate_session_id()
@@ -328,6 +330,7 @@ class TestApiKeyAuth:
     def test_verify_api_key_valid(self, test_settings):
         """verify_api_key passes when header matches settings."""
         import asyncio
+
         from backend.dependencies import verify_api_key
 
         # FIX: asyncio.get_event_loop().run_until_complete() is deprecated in
@@ -342,7 +345,9 @@ class TestApiKeyAuth:
     def test_verify_api_key_missing_raises_401(self, test_settings):
         """verify_api_key raises 401 when header is absent."""
         import asyncio
+
         from fastapi import HTTPException
+
         from backend.dependencies import verify_api_key
 
         with pytest.raises(HTTPException) as exc_info:
@@ -354,7 +359,9 @@ class TestApiKeyAuth:
     def test_verify_api_key_wrong_value_raises_401(self, test_settings):
         """verify_api_key raises 401 when key is wrong."""
         import asyncio
+
         from fastapi import HTTPException
+
         from backend.dependencies import verify_api_key
 
         with pytest.raises(HTTPException) as exc_info:

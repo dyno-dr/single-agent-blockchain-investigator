@@ -23,8 +23,8 @@ import asyncio
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 #pytestmark = pytest.mark.asyncio
 

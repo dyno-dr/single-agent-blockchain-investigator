@@ -45,7 +45,6 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Rule evaluation output
 # ─────────────────────────────────────────────────────────────────────────────
@@ -121,7 +120,7 @@ class ForensicsReport(BaseModel):
         cls,
         wallet_address: str,
         results: list[RuleResult],
-    ) -> "ForensicsReport":
+    ) -> ForensicsReport:
         """Build a ForensicsReport from a flat list of RuleResults."""
         triggered = [r for r in results if r.triggered]
         counts: dict[str, int] = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
@@ -229,7 +228,7 @@ class TraceDirective(BaseModel):
         cls,
         top_candidates: list[ScoredCandidate],
         reason: str = "LLM output invalid",
-    ) -> "TraceDirective":
+    ) -> TraceDirective:
         """
         Build the safe fallback TraceDirective.
 

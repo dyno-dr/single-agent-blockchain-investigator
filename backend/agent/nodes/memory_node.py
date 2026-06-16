@@ -40,7 +40,7 @@ async def memory_node(state: AgentState) -> dict[str, Any]:
         Partial state update setting status=COMPLETE and current_phase=DONE.
     """
     investigation_id = state["investigation_id"]
-    wallet = state["wallet_address"]
+    state["wallet_address"]
     risk_score = state.get("risk_score", 0.0)
     risk_level = state.get("risk_level", "LOW")
     reports = state.get("forensics_reports", {})

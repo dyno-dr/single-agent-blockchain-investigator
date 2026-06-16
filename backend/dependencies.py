@@ -39,13 +39,14 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-import httpx
 from fastapi import Depends, HTTPException, Security, status
 from fastapi.security.api_key import APIKeyHeader
+import httpx
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 from backend.constants import API_KEY_HEADER
 from backend.settings import Settings, get_settings
-from langchain_google_genai import ChatGoogleGenerativeAI
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Module-level resource holders
 # Populated during FastAPI lifespan startup; cleared on shutdown.

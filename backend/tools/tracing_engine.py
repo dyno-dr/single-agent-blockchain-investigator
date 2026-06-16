@@ -36,24 +36,21 @@ DESIGN DECISIONS:
 from __future__ import annotations
 
 from collections import deque
+import datetime as dt
 from typing import Any
 
 import structlog
 
 from backend.blockchain.etherscan_client import EtherscanClient
 from backend.blockchain.models import RawEtherscanTransaction, WalletProfile
-from backend.blockchain.normalizer import normalize_wallet_profile, normalize_transaction
+from backend.blockchain.normalizer import normalize_wallet_profile
 from backend.forensics.pruning_engine import PruneDecision, PruningEngine
 from backend.tools.base import BaseTool
-from backend.utils import utc_now_iso
-
-import datetime as dt
-from datetime import timezone
 
 logger = structlog.get_logger(__name__)
 
 _BLOCKS_PER_DAY = 6500
-_ETH_GENESIS = dt.datetime(2015, 7, 30, tzinfo=timezone.utc)
+_ETH_GENESIS = dt.datetime(2015, 7, 30, tzinfo=dt.UTC)
 
 
 class TracingEngineTool(BaseTool):
@@ -132,7 +129,7 @@ class TracingEngineTool(BaseTool):
             rate_limiter=rate_limiter,
         )
 
-        now = dt.datetime.now(timezone.utc)
+        now = dt.datetime.now(dt.UTC)
         days_since_genesis = (now - _ETH_GENESIS).days
         start_block = max(0, days_since_genesis * _BLOCKS_PER_DAY - lookback_days * _BLOCKS_PER_DAY)
         fetch_limit = min(max_transactions, 1000)

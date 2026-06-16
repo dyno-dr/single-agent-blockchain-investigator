@@ -26,11 +26,11 @@ FUTURE SCALABILITY:
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 import hashlib
 import re
-import uuid
-from datetime import datetime, timezone
 from typing import TypeVar
+import uuid
 
 T = TypeVar("T")
 
@@ -47,7 +47,7 @@ def utc_now() -> datetime:
     Always use this instead of datetime.utcnow() (which returns a naive
     datetime) or datetime.now() (which uses local time).
     """
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def utc_now_iso() -> str:
@@ -57,13 +57,13 @@ def utc_now_iso() -> str:
 
 def unix_to_utc(unix_timestamp: int | float) -> datetime:
     """Convert a Unix epoch timestamp (seconds) to a UTC-aware datetime."""
-    return datetime.fromtimestamp(unix_timestamp, tz=timezone.utc)
+    return datetime.fromtimestamp(unix_timestamp, tz=UTC)
 
 
 def utc_to_unix(dt: datetime) -> int:
     """Convert a datetime to a Unix epoch timestamp (integer seconds)."""
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     return int(dt.timestamp())
 
 

@@ -156,8 +156,8 @@ class ReportGeneratorTool(BaseTool):
 
         # ── Attempt LLM generation ────────────────────────────────────────────
         try:
-            from langchain_google_genai import ChatGoogleGenerativeAI
             from langchain_core.messages import HumanMessage
+            from langchain_google_genai import ChatGoogleGenerativeAI
 
             prompt = _REPORT_PROMPT.format(
                 wallet=ctx.wallet_address,

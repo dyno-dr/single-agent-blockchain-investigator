@@ -1,7 +1,9 @@
 """RULE-007: New Wallet Interaction Detection."""
 from __future__ import annotations
-from datetime import datetime, timezone
+
+from datetime import UTC, datetime
 from typing import Any
+
 from backend.blockchain.models import WalletProfile
 from backend.forensics.base_rule import BaseForensicRule
 from backend.forensics.models import RuleResult
@@ -21,7 +23,7 @@ class NewWalletInteractionRule(BaseForensicRule):
     def evaluate(self, profile: WalletProfile, settings: Any) -> RuleResult:
         age_hours = settings.forensic_rules.RULE_007_NEW_WALLET_AGE_HOURS
         wallet = profile.address
-        now = datetime.now(timezone.utc).timestamp()
+        now = datetime.now(UTC).timestamp()
         age_secs = age_hours * 3600
 
         new_wallet_txs = []

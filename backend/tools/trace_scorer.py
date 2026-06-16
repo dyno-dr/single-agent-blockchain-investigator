@@ -32,7 +32,7 @@ from typing import Any
 
 import structlog
 
-from backend.blockchain.models import CleanTransaction, WalletProfile
+from backend.blockchain.models import WalletProfile
 from backend.forensics.trace_scorer import TraceScorer
 from backend.tools.base import BaseTool
 
@@ -136,7 +136,7 @@ class TraceScorerTool(BaseTool):
             return []
 
         # Compute max outgoing value for normalisation
-        max_value = max((c["value_eth"] for c in candidates), default=1.0) or 1.0
+        max((c["value_eth"] for c in candidates), default=1.0) or 1.0
 
         # Score and rank
         ranked = self._scorer.score_and_rank(

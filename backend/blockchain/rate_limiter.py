@@ -29,11 +29,8 @@ FUTURE SCALABILITY:
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
-from typing import AsyncIterator
-
-import structlog
 from aiolimiter import AsyncLimiter
+import structlog
 
 from backend.settings import Settings
 
@@ -81,7 +78,7 @@ class EtherscanRateLimiter:
             burst_capacity=burst_capacity,
         )
 
-    async def __aenter__(self) -> "EtherscanRateLimiter":
+    async def __aenter__(self) -> EtherscanRateLimiter:
         await self._limiter.acquire()
         return self
 
@@ -112,7 +109,7 @@ class NullRateLimiter:
         app.dependency_overrides[get_rate_limiter] = lambda: NullRateLimiter()
     """
 
-    async def __aenter__(self) -> "NullRateLimiter":
+    async def __aenter__(self) -> NullRateLimiter:
         return self
 
     async def __aexit__(self, *args: object) -> None:

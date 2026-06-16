@@ -8,7 +8,6 @@ its WalletProfile. This is always the first node to run after the planner.
 from __future__ import annotations
 
 import datetime as dt
-from datetime import timezone
 from typing import Any
 
 import structlog
@@ -57,8 +56,8 @@ async def profiler_node(state: AgentState) -> dict[str, Any]:
     fetch_errors: list[str] = []
 
     # Approximate start block from lookback_days
-    now = dt.datetime.now(timezone.utc)
-    days_since_genesis = (now - dt.datetime(2015, 7, 30, tzinfo=timezone.utc)).days
+    now = dt.datetime.now(dt.UTC)
+    days_since_genesis = (now - dt.datetime(2015, 7, 30, tzinfo=dt.UTC)).days
     approx_current_block = days_since_genesis * 6500
     start_block = max(0, approx_current_block - lookback_days * 6500)
 

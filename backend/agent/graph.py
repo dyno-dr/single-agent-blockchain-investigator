@@ -27,12 +27,12 @@ from __future__ import annotations
 
 from langgraph.graph import END, START, StateGraph
 
-from backend.agent.state import AgentState
+from backend.agent.nodes.detector_node import detector_node
+from backend.agent.nodes.memory_node import memory_node
 from backend.agent.nodes.planner import planner_node
 from backend.agent.nodes.profiler_node import profiler_node
-from backend.agent.nodes.detector_node import detector_node
 from backend.agent.nodes.reporter_node import reporter_node
-from backend.agent.nodes.memory_node import memory_node
+from backend.agent.state import AgentState
 
 
 def build_graph() -> StateGraph:

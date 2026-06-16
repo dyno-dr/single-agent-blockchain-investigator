@@ -1,6 +1,8 @@
 """RULE-006: Round Number Transfer Detection."""
 from __future__ import annotations
+
 from typing import Any
+
 from backend.blockchain.models import WalletProfile
 from backend.forensics.base_rule import BaseForensicRule
 from backend.forensics.models import RuleResult

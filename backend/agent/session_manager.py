@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
@@ -50,7 +50,7 @@ class SessionRecord:
     investigation_id: str
     wallet_address: str
     task: asyncio.Task[Any]
-    started_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    started_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     status: str = "RUNNING"         # RUNNING | COMPLETE | FAILED | CANCELLED
 
 

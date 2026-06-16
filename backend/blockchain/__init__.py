@@ -1,5 +1,4 @@
 """backend/blockchain — Ethereum data layer (Phase 2)."""
-"""backend/blockchain — Ethereum data layer (Phase 2)."""
 
 from backend.blockchain.etherscan_client import EtherscanClient
 from backend.blockchain.rate_limiter import (

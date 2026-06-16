@@ -18,10 +18,10 @@ DESIGN DECISIONS:
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
-from backend.blockchain.models import CleanTransaction, WalletProfile
+from backend.blockchain.models import WalletProfile
 from backend.forensics.models import RuleResult
 
 
@@ -100,7 +100,7 @@ class BaseForensicRule(ABC):
             tx_hash=tx_hash,
             block_number=block_number,
             value_eth=value_eth,
-            detected_at=datetime.now(timezone.utc),
+            detected_at=datetime.now(UTC),
         )
 
     def _not_triggered(self, wallet_address: str) -> RuleResult:

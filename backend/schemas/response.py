@@ -25,7 +25,6 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Investigation
 # ─────────────────────────────────────────────────────────────────────────────
@@ -82,7 +81,7 @@ class InvestigationListResponse(BaseModel):
         total: int,
         page: int,
         page_size: int,
-    ) -> "InvestigationListResponse":
+    ) -> InvestigationListResponse:
         """
         Construct a paginated response from a list of raw row dicts.
 

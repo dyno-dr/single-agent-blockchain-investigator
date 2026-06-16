@@ -37,12 +37,12 @@ FUTURE SCALABILITY:
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 import json
-import structlog
-from datetime import datetime, timezone
 from typing import Any
 
 import aiosqlite
+import structlog
 
 logger = structlog.get_logger(__name__)
 
@@ -148,4 +148,4 @@ class BaseRepository:
         Returns:
             UTC timestamp string.
         """
-        return datetime.now(timezone.utc).isoformat()
+        return datetime.now(UTC).isoformat()

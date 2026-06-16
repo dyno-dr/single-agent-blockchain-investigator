@@ -11,8 +11,9 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-import structlog
+import aiosqlite
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+import structlog
 
 from backend.constants import ErrorCode, InvestigationStatus
 from backend.dependencies import AuthDep, HttpClientDep, RateLimiterDep, SettingsDep
@@ -21,8 +22,6 @@ from backend.persistence.database import get_db
 from backend.persistence.repositories import InvestigationRepository
 from backend.schemas.request import InvestigationRequest
 from backend.schemas.response import InvestigationResponse
-
-import aiosqlite
 
 logger = structlog.get_logger(__name__)
 
@@ -155,8 +154,8 @@ async def _run_agent(
     raises RepositoryException("A report already exists...") because
     memory_node already inserted the row by the time ainvoke() returns.
     """
-    from backend.persistence.database import get_db_direct
     from backend.agent.graph import investigation_graph
+    from backend.persistence.database import get_db_direct
 
     db = None
     try:

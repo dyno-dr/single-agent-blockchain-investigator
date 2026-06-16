@@ -27,7 +27,6 @@ from pydantic import BaseModel, Field, field_validator
 
 from backend.utils import is_valid_eth_address
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Investigation
 # ─────────────────────────────────────────────────────────────────────────────

@@ -32,9 +32,9 @@ DESIGN DECISIONS:
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 import json
 import os
-from datetime import datetime, timezone
 from typing import Any
 
 import structlog
@@ -112,9 +112,9 @@ def _wei_to_eth(wei: int) -> float:
 def _parse_timestamp(ts: str) -> datetime:
     """Parse a Unix timestamp string to a UTC-aware datetime."""
     try:
-        return datetime.fromtimestamp(int(ts), tz=timezone.utc)
+        return datetime.fromtimestamp(int(ts), tz=UTC)
     except (ValueError, TypeError, OSError):
-        return datetime.fromtimestamp(0, tz=timezone.utc)
+        return datetime.fromtimestamp(0, tz=UTC)
 
 
 def _classify_direction(
