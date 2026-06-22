@@ -38,11 +38,22 @@ especially welcome.
 
 ## Adding a new forensic rule
 
+**For General Anomaly Rules:**
 1. Create `backend/forensics/rules/your_rule.py` inheriting from `BaseForensicRule`
 2. Assign the next `RULE-00N` ID from `backend/constants.py`
 3. Register it in `backend/forensics/engine.py`
 4. Add tests to `backend/tests/unit/test_rules/test_your_rule.py`
 5. Document it in `README.md` under the Forensic Rules table
+
+**For Pre-Deployment Rugpull Rules:**
+1. Add the rule logic inside `backend/forensics/rugpull/rules.py`
+2. Assign the next `RUG-00N` or `RUG-NEW-X` ID
+3. Test your rule empirically against the dataset using the CLI test harness:
+   ```bash
+   # Make sure it works against offline cached data without hitting API rate limits
+   python test_rugpull.py --known --cache
+   ```
+4. If your rule requires new data to be extracted (e.g. internal transactions), update `extractor.py` and the `FeatureVector` model.
 
 ---
 
@@ -66,7 +77,8 @@ pytest backend/tests/ -v
 - [ ] No new linting errors: `ruff check backend/`
 - [ ] No secrets in the diff
 - [ ] PR description explains what changed and why
-- [ ] If adding a forensic rule: determinism is documented in the docstring
+- [ ] If adding a general forensic rule: determinism is documented in the docstring
+- [ ] If adding a rugpull rule: tested locally using `python test_rugpull.py --known --cache`
 
 ---
 

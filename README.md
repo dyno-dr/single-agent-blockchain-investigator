@@ -29,9 +29,10 @@ The **Single-Agent Blockchain Investigator** is an autonomous AI system that, gi
 2. **Profiles** the wallet and computes behavioral statistics
 3. **Scores** outgoing transactions using a deterministic 4-factor ranking model
 4. **Plans** a trace strategy via Gemini LLM (constrained to 5 valid strategies)
-5. **Detects** suspicious patterns using 7 forensic rules with explainable findings
-6. **Generates** a structured investigation report with evidence-backed reasoning
-7. **Persists** the full investigation history in SQLite for audit and replay
+5. **Detects** suspicious patterns using 7 general forensic rules
+6. **Triages** potential rugpull operators *pre-deployment* via a specialized behavioral engine
+7. **Generates** a structured investigation report with evidence-backed reasoning
+8. **Persists** the full investigation history in SQLite for audit and replay
 
 Every decision the agent makes is logged, structured, and explainable — this is not a black-box score. Each finding carries an **Observation**, **Evidence**, and **Reasoning** field, following the XAI (Explainable AI) principle.
 
@@ -104,13 +105,18 @@ single-agent-blockchain-investigator/
 │   │   └── report_generator.py
 │   │
 │   ├── forensics/
-│   │   ├── engine.py                  # Rule executor (no LLM dependency)
+│   │   ├── engine.py                  # General rule executor (no LLM dependency)
 │   │   ├── base_rule.py               # Abstract ForensicRule interface
 │   │   ├── risk_scorer.py             # Weighted severity aggregation (0–100)
 │   │   ├── pruning_engine.py          # EXPAND/SKIP/HALT/SAMPLE per hop
 │   │   ├── trace_scorer.py            # Layer-1 deterministic scoring math
 │   │   ├── models.py                  # TraceDirective, ReportContext, ScoredCandidate
-│   │   └── rules/                     # 7 rule implementations (RULE-001 → RULE-007)
+│   │   ├── rules/                     # 7 general rule implementations
+│   │   └── rugpull/                   # Rugpull Creator Triage Engine
+│   │       ├── extractor.py           # Feature engineering (F1-F7, NEW-A/B)
+│   │       ├── rules.py               # Deployer-centric behavioral rules
+│   │       ├── scorer.py              # Verdict bands and score computation
+│   │       └── engine.py              # Standalone triage orchestrator
 │   │
 │   ├── blockchain/
 │   │   ├── etherscan_client.py        # Async HTTP client
@@ -133,6 +139,7 @@ single-agent-blockchain-investigator/
 ├── docs/
 │   └── workflow.png                   # System architecture diagram
 │
+├── test_rugpull.py                    # CLI test harness for the rugpull engine
 ├── .env.example
 ├── requirements.txt
 ├── pyproject.toml
@@ -142,7 +149,7 @@ single-agent-blockchain-investigator/
 
 ---
 
-## Forensic Rules
+### General Anomaly Rules
 
 Seven deterministic rules — no LLM, fully reproducible:
 
@@ -162,6 +169,21 @@ Seven deterministic rules — no LLM, fully reproducible:
 CRITICAL finding → +40 pts   HIGH → +20 pts   MEDIUM → +10 pts   LOW → +5 pts
 Mixer contact bonus → +30 pts flat
 ```
+
+### Pre-Deployment Rugpull Rules
+
+A specialized standalone engine (`RugpullEngine`) profiles contract deployers *before* the malicious act occurs based on preparation behaviour.
+
+| Rule | Name | Detection Logic | Severity |
+|---|---|---|---|
+| RUG-001 | No Dry-Runs | Zero testnet/reverted mainnet attempts before deployment | MEDIUM |
+| RUG-002 | Scripted Funding | Extremely low CV in funding gap timing | HIGH |
+| RUG-004 | Fast Burst | Consecutive deployments in under 60 minutes | LOW |
+| RUG-NEW-A | Immediate Clone | Secondary contract deployment within 60 minutes | MEDIUM |
+| RUG-NEW-B | Ownership Transfer| Contract ownership transferred away within 48h | HIGH |
+
+**Rugpull Verdict Bands:**
+Scores are mapped to confidence bands (`CLEAN`, `WEAK_PATTERN`, `MODERATE_PATTERN`, `STRONG_PATTERN`, `HIGH_CONFIDENCE_RUGPULL`) to prevent binary false positives.
 
 ---
 
@@ -230,6 +252,18 @@ curl http://localhost:8000/api/v1/investigate/{investigation_id} \
 # Get the full report
 curl http://localhost:8000/api/v1/report/{investigation_id} \
   -H "X-API-Key: your_secret_key"
+```
+
+### 6 — Manual Rugpull Triage (CLI)
+
+You can run the standalone pre-deployment rugpull engine directly from the terminal without starting the server:
+
+```bash
+# Test a live wallet
+python test_rugpull.py 0xYourWalletAddressHere
+
+# Run offline tests against the known dataset
+python test_rugpull.py --known
 ```
 
 ### Docker
@@ -361,6 +395,7 @@ Phase 4  🔲  WebSocket live streaming (real-time agent reasoning in frontend)
 Phase 5  🔲  Visualization backend (NetworkX graph → D3/Canvas/WebGL renderer)
 Phase 6  🔲  React frontend (investigation console, suspicion panel, report viewer)
 Phase 7  🔲  Multi-agent expansion
+              ├── Pre-Deployment Rugpull Profiler (✅ Completed as standalone engine)
               ├── Wallet Attribution Agent (ML entity clustering)
               ├── AML Compliance Agent (50+ FATF typology rules)
               ├── Transaction Tracing Agent (cross-chain, MEV, L2)
