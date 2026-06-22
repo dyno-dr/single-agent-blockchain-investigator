@@ -68,6 +68,8 @@ class AgentState(TypedDict):
     traced_wallets: Annotated[list[str], operator.add]
     # Current trace depth (0 = root wallet only)
     current_depth: int
+    # Layer-1 scored candidate dicts emitted by trace_scorer_node for planner
+    trace_candidates: Annotated[list[dict[str, Any]], operator.add]
 
     # ── Forensics ─────────────────────────────────────────────────────────────
     # keyed by wallet_address
@@ -143,6 +145,7 @@ def make_initial_state(
         wallets_to_trace=[wallet_address.lower()],
         traced_wallets=[],
         current_depth=0,
+        trace_candidates=[],
         forensics_reports={},
         risk_score=0.0,
         risk_level="LOW",

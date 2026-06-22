@@ -58,7 +58,7 @@ from functools import lru_cache
 import os
 from typing import Any
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -416,6 +416,187 @@ class LoggingSettings(BaseSettings):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Rugpull Creator Profiling: empirically-derived thresholds
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class RugpullProfileConfig(BaseSettings):
+    """
+    Empirically-derived thresholds for the rugpull creator flagging system.
+
+    SOURCE: scripts/derive_rugpull_thresholds_v2.py run against
+            50 confirmed rugpull creator addresses + 20 genuine deployer addresses.
+
+    CRITICAL NOTES FROM v2 ANALYSIS (read before editing thresholds):
+      - F1 (warmup): hypothesis INVERTED — rugpull median (8.75h) > genuine
+        (2.61h). Only flag extreme burner-wallet case (< 15 min).
+      - F2 (funding CV): CONFIRMED — best single feature, 64% separation.
+        Low CV = scripted automated funding. UNDEFINED for 1-deployment wallets.
+      - F3 (dry-run): REDESIGNED — v1 70% threshold was too strict.
+        v2 uses 40% Jaccard, 6-hour window, cap of 10 per deployment.
+      - F4 (burstiness): INVERTED — genuine pro-deployers are MORE bursty.
+        Dropped as severity trigger; raw deployment count used instead.
+      - F5 (nonce entropy): TOO WEAK — groups nearly identical (4.67 vs 4.54).
+        Contextual narrative only; never a standalone severity trigger.
+      - F7 (within-wallet similarity): INVERTED — genuine deployers score
+        higher (0.28) than rugpulls (0.19). Within-wallet NOT a trigger.
+        Cross-wallet comparison handled at rule-engine runtime.
+      - F6 (gas-window timing): excluded — requires block-level gas data.
+
+    Re-run scripts/derive_rugpull_thresholds_v2.py when address set changes.
+    All fields are overridable via .env using the RUG_ prefix.
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix="RUG_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    # ── F1: Warmup Hours ─────────────────────────────────────────────────────
+    # DATA FINDING: hypothesis WRONG. Rugpull median (8.75h) > genuine (2.61h).
+    # Only flag extreme burner-wallet case (< 15 min). Minor supporting signal.
+    RUG_001_BURNER_THRESHOLD_HOURS: float = Field(
+        default=0.25,
+        gt=0.0,
+        description="F1: warmup under this many hours = extreme burner-wallet signal only.",
+    )
+
+    # ── F2: Funding CV ───────────────────────────────────────────────────────
+    # DATA FINDING: CONFIRMED — 64% separation. Best single feature.
+    # Low CV = scripted/automated funding pipeline (same funder, same timing).
+    # UNDEFINED for wallets with < 2 deployments — return None, do NOT flag.
+    RUG_002_HIGH_CV_MAX: float = Field(
+        default=0.9956,
+        ge=0.0,
+        description="F2 HIGH: funding CV at or below this value -> HIGH severity.",
+    )
+    RUG_002_MEDIUM_CV_MAX: float = Field(
+        default=1.2546,
+        ge=0.0,
+        description="F2 MEDIUM: funding CV at or below this value -> MEDIUM severity.",
+    )
+    RUG_002_CLEAN_FLOOR_CV_MIN: float = Field(
+        default=0.6420,
+        ge=0.0,
+        description="F2: genuine group p25 — values above this are rarely suspicious.",
+    )
+
+    # ── F3: Dry-Run Count ────────────────────────────────────────────────────
+    # DATA FINDING: REDESIGNED in v2. v1 70% threshold was too strict.
+    # Feature extractor params (also must match rugpull_features.py):
+    RUG_003_HIGH_COUNT: int = Field(
+        default=3,
+        ge=1,
+        description="F3 HIGH: 3+ dry-run transactions across deployments.",
+    )
+    RUG_003_MEDIUM_COUNT: int = Field(
+        default=1,
+        ge=1,
+        description="F3 MEDIUM: 1-2 dry-run transactions.",
+    )
+    RUG_003_SIMILARITY_THRESHOLD: float = Field(
+        default=0.40,
+        gt=0.0,
+        le=1.0,
+        description="F3: Jaccard k-mer similarity threshold for dry-run detection (v2=0.40, v1=0.70).",
+    )
+    RUG_003_WINDOW_HOURS: int = Field(
+        default=6,
+        ge=1,
+        description="F3: hours before deployment to scan for dry-run candidates (v2=6h, v1=1h).",
+    )
+    RUG_003_MAX_COUNT_CAP: int = Field(
+        default=10,
+        ge=1,
+        description="F3: per-deployment cap on dry-run count to suppress batch-deploy false positives.",
+    )
+
+    # ── F4: Deployment Count ─────────────────────────────────────────────────
+    # DATA FINDING: burstiness INVERTED (genuine more bursty). Dropped as trigger.
+    # Raw deployment count used as proxy for sustained repeat operator activity.
+    RUG_004_HIGH_DEPLOYMENT_COUNT: int = Field(
+        default=20,
+        ge=1,
+        description="F4 HIGH: 20+ deployments from same wallet.",
+    )
+    RUG_004_MEDIUM_DEPLOYMENT_COUNT: int = Field(
+        default=10,
+        ge=1,
+        description="F4 MEDIUM: 10+ deployments from same wallet.",
+    )
+
+    # ── F5: Nonce Entropy ────────────────────────────────────────────────────
+    # DATA FINDING: TOO WEAK — groups nearly identical (4.67 vs 4.54 median).
+    # Only report as narrative context. No severity trigger.
+    RUG_005_SCRIPTED_ENTROPY_MAX: float = Field(
+        default=3.0,
+        ge=0.0,
+        description="F5: below this entropy = clearly automated, but context only (not a severity trigger).",
+    )
+
+    # ── F7: Template Similarity ──────────────────────────────────────────────
+    # DATA FINDING: within-wallet similarity INVERTED (genuine=0.28, rugpull=0.19).
+    # Within-wallet: compute + report, NO severity trigger.
+    # Cross-wallet: checked at runtime against creator_templates DB table.
+    RUG_007_CROSS_WALLET_SIMILARITY_MIN: float = Field(
+        default=0.75,
+        ge=0.0,
+        le=1.0,
+        description="F7: cross-wallet setup-sequence similarity threshold for runtime DB comparison.",
+    )
+
+    # ── NEW-A: Single Deployment (Burner Wallet) ──────────────────────────────
+    # DATA FINDING: 54% of rugpull group had exactly 1 deployment.
+    # F2, F4, F7 are undefined for these wallets.
+    RUG_NEW_A_SINGLE_DEPLOY_WARMUP_MAX_HOURS: float = Field(
+        default=2.0,
+        gt=0.0,
+        description="NEW-A MEDIUM: single-deploy wallet with warmup below this -> MEDIUM severity.",
+    )
+
+    # ── NEW-B: Cross-wallet Funding Source ────────────────────────────────────
+    # Flag HIGH if a funding source has funded N+ known rugpull wallets.
+    # Checked at runtime from creator_funding_sources DB table.
+    RUG_NEW_B_FUNDER_MIN_KNOWN_WALLETS: int = Field(
+        default=3,
+        ge=1,
+        description="NEW-B HIGH: funder that has funded this many+ known-bad wallets -> HIGH severity.",
+    )
+
+    # ── Scoring weights ───────────────────────────────────────────────────────
+    # Used in rugpull_scorer.py to convert per-feature severities to a 0-100 score.
+    SCORE_CRITICAL: int = Field(default=40, ge=1)
+    SCORE_HIGH: int = Field(default=25, ge=1)
+    SCORE_MEDIUM: int = Field(default=10, ge=1)
+    SCORE_LOW: int = Field(default=5, ge=1)
+
+    # ── Verdict bands (minimum score for each verdict level) ──────────────────
+    VERDICT_WEAK_MIN: int = Field(default=16, ge=0)
+    VERDICT_MODERATE_MIN: int = Field(default=36, ge=0)
+    VERDICT_STRONG_MIN: int = Field(default=66, ge=0)
+    VERDICT_HIGH_CONFIDENCE_MIN: int = Field(default=100, ge=0)
+
+    # ── Override rule ─────────────────────────────────────────────────────────
+    # If RUG-007 cross-wallet match fires -> verdict = at least STRONG_PATTERN
+    # regardless of score. Direct linkage outweighs probabilistic score.
+    RUG_007_CROSS_MATCH_OVERRIDES_VERDICT: bool = Field(
+        default=True,
+        description="F7: cross-wallet match forces verdict to STRONG_PATTERN minimum.",
+    )
+
+    # ── Multi-hop ownership transfer detection ────────────────────────────────
+    # When a deployment has owner_transfer_to set, the rule engine queues that
+    # address for secondary analysis. These constants control detection window.
+    OWNERSHIP_TRANSFER_WINDOW_HOURS: int = Field(
+        default=48,
+        ge=1,
+        description="Scan this many hours post-deployment for transferOwnership() calls.",
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Root Settings: composes all sub-models
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -469,6 +650,7 @@ class Settings(BaseSettings):
     session: SessionSettings = Field(default_factory=SessionSettings)
     graph_renderer: GraphRendererConfig = Field(default_factory=GraphRendererConfig)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
+    rugpull: RugpullProfileConfig = Field(default_factory=RugpullProfileConfig)
 
     @property
     def is_production(self) -> bool:

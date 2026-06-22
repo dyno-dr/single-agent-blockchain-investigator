@@ -26,6 +26,7 @@ class EvidenceRepository(BaseRepository):
         self, *, investigation_id: str, rule_id: str, rule_name: str,
         severity: str, description: str, wallet_address: str,
         rule_category: str | None = None, details: dict | None = None,
+        reasoning: str | None = None,
         tx_hash: str | None = None, block_number: int | None = None,
         value_eth: str | None = None,
     ) -> dict[str, Any]:
@@ -36,12 +37,12 @@ class EvidenceRepository(BaseRepository):
             """
             INSERT INTO evidence (
                 id, investigation_id, rule_id, rule_name, rule_category,
-                severity, description, details,
+                severity, description, reasoning, details,
                 wallet_address, tx_hash, block_number, value_eth, detected_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (evidence_id, investigation_id, rule_id, rule_name, rule_category,
-             severity, description, self._dump_json(details),
+             severity, description, reasoning, self._dump_json(details),
              wallet_address, tx_hash, block_number, value_eth, now),
         )
         await self._conn.commit()
@@ -64,13 +65,14 @@ class EvidenceRepository(BaseRepository):
                 """
                 INSERT INTO evidence (
                     id, investigation_id, rule_id, rule_name, rule_category,
-                    severity, description, details,
+                    severity, description, reasoning, details,
                     wallet_address, tx_hash, block_number, value_eth, detected_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (evidence_id, item["investigation_id"], item["rule_id"], item["rule_name"],
                  item.get("rule_category"), item["severity"], item["description"],
-                 self._dump_json(item.get("details")), item["wallet_address"],
+                 item.get("reasoning"), self._dump_json(item.get("details")),
+                 item["wallet_address"],
                  item.get("tx_hash"), item.get("block_number"), item.get("value_eth"), now),
             )
         await self._conn.commit()

@@ -31,7 +31,7 @@ import pytest_asyncio
 # Async test infrastructure
 # ─────────────────────────────────────────────────────────────────────────────
 
-pytestmark = pytest.mark.asyncio
+
 
 
 async def _open_test_db() -> aiosqlite.Connection:

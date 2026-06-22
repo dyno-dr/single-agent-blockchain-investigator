@@ -64,6 +64,7 @@ async def memory_node(state: AgentState) -> dict[str, Any]:
                 "rule_category": finding.rule_category,
                 "severity": finding.severity,
                 "description": finding.description,
+                "reasoning": finding.reasoning,
                 "details": dict(finding.details),
                 "wallet_address": w,
                 "tx_hash": finding.tx_hash,

@@ -83,3 +83,7 @@ Thumbs.db
 
 # Logs
 *.log
+
+# ── Data Caches (Do not commit) ──
+raw_wallet_data*.json
+threshold_results*.json

@@ -1,29 +1,28 @@
 """
 backend/agent/nodes/trace_scorer_node.py
 ─────────────────────────────────────────────────────────────────────────────
-TRACE_SCORER node: Layer 1 (deterministic math) + Layer 2 (planner-validated)
-candidate selection. Determines which wallets to queue for multi-hop tracing.
+TRACE_SCORER node: Layer 1 (deterministic math) candidate scoring.
+Runs AFTER profiler and BEFORE planner so the planner LLM receives the
+ranked candidate list for informed strategy selection.
 
 POSITION IN GRAPH:
-  profiler → TRACE_SCORER → tracer (if depth ≥ 2 and candidates > 0)
-                          → detector (if depth == 1 or no candidates)
+  profiler → TRACE_SCORER → planner → detector → reporter → memory
 
 WHAT IT DOES:
   1. For each wallet in wallet_profiles, calls TraceScorerTool to rank
      its outgoing/incoming counterparties by the 3-layer priority score.
   2. Filters candidates through PruningEngine (Layer 3 pre-screen) to
      discard dust and known entities before even queuing them.
-  3. Merges candidates from all wallets into wallets_to_trace, respecting
-     the top-K cap per depth level.
-  4. Adds new candidate addresses to graph_nodes so the graph grows.
+  3. Emits both:
+       - trace_candidates: list[ScoredCandidate dicts] consumed by PLANNER
+       - wallets_to_trace: list[str addresses] consumed by TRACER (depth ≥ 2)
+  4. Adds new candidate graph_nodes for visualization.
 
 DESIGN DECISIONS:
-  1. This node runs between profiler and tracer. It is a pure scoring step —
-     no Etherscan calls, no LLM calls. All I/O happens in profiler/tracer.
-  2. For depth=1 investigations, this node emits an empty candidates list.
-     The graph edge logic routes directly to detector in that case.
-  3. wallets_to_trace uses operator.add (append-only) so this node only
-     adds new wallets — it never removes existing ones.
+  1. This node runs between profiler and planner. Pure scoring — no I/O.
+  2. For depth=1 investigations, emits empty lists but still runs so the
+     planner has visibility into the scoring step in reasoning_log.
+  3. wallets_to_trace uses operator.add (append-only).
 """
 
 from __future__ import annotations
@@ -64,23 +63,26 @@ async def trace_scorer_node(state: AgentState) -> dict[str, Any]:
     traced_wallets = set(state.get("traced_wallets", []))
     settings = state["settings"]
 
-    # depth=1 means root wallet only — no tracing needed
+    # depth=1: no multi-hop tracing. Still run scorer so planner gets
+    # the top candidates for strategy reasoning even on shallow investigations.
+    all_candidates: list[str] = []
+    scored_candidates: list[dict] = []  # ScoredCandidate-shaped dicts for planner
+    new_graph_nodes: list[dict[str, Any]] = []
+    scored_count = 0
+
     if depth < 2:
         logger.debug("trace_scorer_skip_depth_1")
         step = ReasoningStep(
             step="TRACE_SCORER",
-            action="Skipped — depth=1, no tracing required",
-            observation="Investigation configured for root wallet only.",
+            action="Scored candidates (depth=1, no tracing queued)",
+            observation="Root wallet only — candidates scored for planner but not queued.",
             timestamp=utc_now_iso(),
         )
         return {
-            "current_phase": "TRACING",
+            "current_phase": "SCORING",
+            "trace_candidates": scored_candidates,
             "reasoning_log": [step],
         }
-
-    all_candidates: list[str] = []
-    new_graph_nodes: list[dict[str, Any]] = []
-    scored_count = 0
 
     for wallet, profile in wallet_profiles.items():
         if wallet in traced_wallets:
@@ -97,6 +99,7 @@ async def trace_scorer_node(state: AgentState) -> dict[str, Any]:
             )
         except Exception as exc:
             logger.warning("trace_scorer_node_tool_failed", wallet=wallet, error=str(exc))
+            ranked = []
             continue
 
         scored_count += len(ranked)
@@ -104,8 +107,25 @@ async def trace_scorer_node(state: AgentState) -> dict[str, Any]:
         for candidate in ranked:
             candidate_wallet = candidate["wallet"]
             value_eth = candidate.get("value_eth", 0.0)
+            trace_score = candidate.get("trace_score", 0.0)
 
-            # Pre-screen through PruningEngine before queuing
+            # Build a ScoredCandidate-shaped dict for the PLANNER node
+            tx = candidate.get("tx")
+            scored_candidates.append({
+                "tx_hash": tx.hash if tx else "",
+                "counterparty_address": candidate_wallet,
+                "value_eth": float(value_eth),
+                "value_score": candidate.get("value_score", 0.0),
+                "recency_score": candidate.get("recency_score", 0.0),
+                "novelty_score": candidate.get("novelty_score", 0.0),
+                "rule_score": candidate.get("rule_score", 0.0),
+                "final_score": float(trace_score),
+                "timestamp": tx.timestamp.isoformat() if tx and tx.timestamp else None,
+                "to_entity_label": tx.to_entity_label if tx else None,
+                "to_entity_type": tx.to_entity_type if tx else None,
+            })
+
+            # Pre-screen through PruningEngine before queuing for tracing
             decision = _pruner.evaluate(
                 candidate_wallet=candidate_wallet,
                 value_eth=value_eth,
@@ -123,7 +143,7 @@ async def trace_scorer_node(state: AgentState) -> dict[str, Any]:
                     "type": "unknown",
                     "is_root": False,
                     "is_flagged": False,
-                    "trace_score": candidate.get("trace_score", 0.0),
+                    "trace_score": trace_score,
                     "depth": current_depth + 1,
                 })
             elif decision == PruneDecision.HALT:
@@ -157,8 +177,9 @@ async def trace_scorer_node(state: AgentState) -> dict[str, Any]:
     )
 
     return {
-        "current_phase": "TRACING",
-        "wallets_to_trace": all_candidates,
+        "current_phase": "SCORING",
+        "trace_candidates": scored_candidates,   # consumed by PLANNER node
+        "wallets_to_trace": all_candidates,       # consumed by TRACER node (depth ≥ 2)
         "graph_nodes": new_graph_nodes,
         "reasoning_log": [step],
     }

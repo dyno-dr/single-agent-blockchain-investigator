@@ -260,7 +260,7 @@ def calculate_offset(page: int, page_size: int) -> int:
     return max(0, (page - 1)) * page_size
 
 
-def paginate_list[T](items: list[T], limit: int, offset: int) -> list[T]:
+def paginate_list(items: list[T], limit: int, offset: int) -> list[T]:
     """
     Paginate an in-memory list.
 
