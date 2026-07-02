@@ -183,7 +183,7 @@ async def _run_agent(
             "wallet_profiles": {},
             "forensics_reports": {},
             "traced_wallets": [],
-            "wallets_to_trace": [],
+            "wallets_to_trace": [wallet],
             "graph_nodes": [],
             "graph_edges": [],
             "reasoning_log": [],

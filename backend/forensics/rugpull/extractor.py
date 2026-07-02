@@ -5,7 +5,8 @@ Feature extraction layer for the rugpull creator triage system.
 
 Takes raw Etherscan transaction data (normal txs + internal txs) for a single
 wallet and computes the 7 pre-deployment behavioural features (F1-F7) derived
-empirically from the v2 threshold analysis script.
+empirically from the v2 threshold analysis script, PLUS the 8 new Funding
+Provenance features (FP1-FP8) from the funding graph analysis.
 
 DESIGN:
   - Pure computation: no API calls, no I/O, no side effects.
@@ -16,17 +17,28 @@ DESIGN:
     between LangGraph nodes and serialised to the DB.
 
 FEATURE REFERENCE:
-  F1  warmup_hours            — hours from first on-chain activity → first deployment
-  F2  funding_cv              — CV of funding-lag gaps across deployments
-  F3  dry_run_count           — bytecode-similar / reverted txs before deployment
-  F4  deployment_count        — total deployments from this wallet
-  F4b burstiness              — Goh-Barabási B (narrative only, not a trigger)
-  F5  nonce_entropy           — Shannon entropy of inter-tx gaps (narrative only)
-  F7  within_wallet_sim       — avg pairwise Levenshtein of setup sequences
-  new_a_single_deploy         — wallet has exactly 1 deployment (burner flag)
-  ownership_transfer_count    — deployments followed by transferOwnership() in 48h
-  all_funding_sources         — unique funder addresses (for NEW-B runtime check)
-  deployment_setup_sequences  — raw sequences for cross-wallet F7 DB comparison
+  F1  warmup_hours               — hours from first on-chain activity → first deployment
+  F2  funding_cv                 — CV of funding-lag gaps across deployments
+  F3  dry_run_count              — bytecode-similar / reverted txs before deployment
+  F4  deployment_count           — total deployments from this wallet
+  F4b burstiness                 — Goh-Barabási B (narrative only, not a trigger)
+  F5  nonce_entropy              — Shannon entropy of inter-tx gaps (narrative only)
+  F7  within_wallet_sim          — avg pairwise Levenshtein of setup sequences
+  new_a_single_deploy            — wallet has exactly 1 deployment (burner flag)
+  ownership_transfer_count       — deployments followed by transferOwnership() in 48h
+  all_funding_sources            — unique funder addresses (for NEW-B runtime check)
+  deployment_setup_sequences     — raw sequences for cross-wallet F7 DB comparison
+
+NEW FUNDING PROVENANCE FEATURES (FP1-FP8):
+  fp_first_inbound_source_type   — CEX / MIXER / BRIDGE / FRESH_WALLET / EOA
+  fp_min_hops_to_known_source    — shortest path on tx graph to CEX/mixer/bridge
+  fp_fraction_fresh_capital      — % of seed ETH from <48h-old wallets
+  fp_funding_entropy_norm        — Shannon entropy of funding source categories
+  fp_median_seed_eth             — median seed tx size (structuring detection)
+  fp_seed_tx_count               — count of seed transactions
+  fp_standardized_seed_gas_units — seed amount / gas_price (gas-relative)
+  fp_shared_upstream_funders     — bool: shares funders with known scam wallets
+  fp_max_funder_jaccard          — max Jaccard similarity with any known scammer
 """
 
 from __future__ import annotations
@@ -111,6 +123,34 @@ class FeatureVector(BaseModel):
     # ── F7 cross-wallet runtime data ──────────────────────────────────────────
     # Raw selector sequences per deployment (stored in DB for cross-wallet F7)
     deployment_setup_sequences: list[list[str]] = Field(default_factory=list)
+
+    # ── Funding Provenance Features (FP1-FP8) ────────────────────────────────
+    # FP1 — First inbound source type
+    fp_first_inbound_source_type: str = "UNKNOWN_EOA"
+
+    # FP2 — Hops from nearest known exchange / mixer / bridge
+    fp_min_hops_to_known_source: Optional[int] = None
+
+    # FP3 — Fraction of seed capital from fresh wallets (<48h old)
+    fp_fraction_fresh_capital: Optional[float] = None
+
+    # FP5 — Normalised Shannon entropy of funding source categories [0, 1]
+    fp_funding_entropy_norm: Optional[float] = None
+
+    # FP6a — Median seed transaction size in ETH
+    fp_median_seed_eth: Optional[float] = None
+
+    # FP6a (count) — Number of seed transactions (for structuring detection)
+    fp_seed_tx_count: int = 0
+
+    # FP6b — Seed amount expressed in gas units (gas-relative normalisation)
+    fp_standardized_seed_gas_units: Optional[float] = None
+
+    # FP8 — Boolean: creator shares upstream funders with known scam wallets
+    fp_shared_upstream_funders: bool = False
+
+    # FP4 — Max Jaccard similarity of funder sets vs any known scam creator
+    fp_max_funder_jaccard: Optional[float] = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────

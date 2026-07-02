@@ -468,14 +468,14 @@ class RugpullProfileConfig(BaseSettings):
     # Low CV = scripted/automated funding pipeline (same funder, same timing).
     # UNDEFINED for wallets with < 2 deployments — return None, do NOT flag.
     RUG_002_HIGH_CV_MAX: float = Field(
-        default=0.9956,
+        default=0.60,
         ge=0.0,
-        description="F2 HIGH: funding CV at or below this value -> HIGH severity.",
+        description="F2 HIGH: funding CV at or below this value -> HIGH severity. Tightened from 0.9956 to reduce FP on genuine founders with regular funding.",
     )
     RUG_002_MEDIUM_CV_MAX: float = Field(
-        default=1.2546,
+        default=0.90,
         ge=0.0,
-        description="F2 MEDIUM: funding CV at or below this value -> MEDIUM severity.",
+        description="F2 MEDIUM: funding CV at or below this value -> MEDIUM severity. Tightened from 1.2546.",
     )
     RUG_002_CLEAN_FLOOR_CV_MIN: float = Field(
         default=0.6420,
@@ -573,9 +573,11 @@ class RugpullProfileConfig(BaseSettings):
     SCORE_LOW: int = Field(default=5, ge=1)
 
     # ── Verdict bands (minimum score for each verdict level) ──────────────────
-    VERDICT_WEAK_MIN: int = Field(default=16, ge=0)
+    # WEAK_MIN lowered from 26 to 20 so that 2 MEDIUM rules (20) or 1 HIGH rule (25)
+    # properly trigger a detection rather than being swallowed as CLEAN.
+    VERDICT_WEAK_MIN: int = Field(default=20, ge=0)
     VERDICT_MODERATE_MIN: int = Field(default=36, ge=0)
-    VERDICT_STRONG_MIN: int = Field(default=66, ge=0)
+    VERDICT_STRONG_MIN: int = Field(default=50, ge=0)
     VERDICT_HIGH_CONFIDENCE_MIN: int = Field(default=100, ge=0)
 
     # ── Override rule ─────────────────────────────────────────────────────────

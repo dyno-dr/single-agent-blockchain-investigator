@@ -1,225 +1,716 @@
 {
-  "_comment": "Known Ethereum entity labels. address → {label, type, risk_note}. All addresses lowercase.",
-
-  "known_cex": {
-    "0x3f5ce5fbfe3e9af3971dd833d26ba9b5c936f0be": {
-      "label": "Binance Hot Wallet 1",
-      "type": "known_cex",
-      "risk_note": "Major centralised exchange deposit address"
+    "_comment": "Known Ethereum entity labels. address -> {label, type, risk_note}. All addresses lowercase. Last updated: 2026-06.",
+    "known_cex": {
+        "0x3f5ce5fbfe3e9af3971dd833d26ba9b5c936f0be": {
+            "label": "Binance Hot Wallet 1",
+            "type": "CEX",
+            "risk_note": "Major centralised exchange deposit address"
+        },
+        "0xd551234ae421e3bcba99a0da6d736074f22192ff": {
+            "label": "Binance Hot Wallet 2",
+            "type": "CEX",
+            "risk_note": "Major centralised exchange deposit address"
+        },
+        "0x564286362092d8e7936f0549571a803b203aaced": {
+            "label": "Binance Hot Wallet 3",
+            "type": "CEX",
+            "risk_note": "Major centralised exchange deposit address"
+        },
+        "0x0681d8db095565fe8a346fa0277bffde9c0edbbf": {
+            "label": "Binance Hot Wallet 4",
+            "type": "CEX",
+            "risk_note": "Major centralised exchange deposit address"
+        },
+        "0xfe9e8709d3215310075d67e3ed32a380ccf451c8": {
+            "label": "Binance Hot Wallet 5",
+            "type": "CEX",
+            "risk_note": "Major centralised exchange deposit address"
+        },
+        "0x4e9ce36e442e55ecd9025b9a6e0d88485d628a67": {
+            "label": "Binance Hot Wallet 6",
+            "type": "CEX",
+            "risk_note": "Major centralised exchange deposit address"
+        },
+        "0x8894e0a0c962cb723c1976a4421c95949be2d4e3": {
+            "label": "Binance Hot Wallet 7",
+            "type": "CEX",
+            "risk_note": "Major centralised exchange deposit address"
+        },
+        "0xe0f0cfde7ee664943906f17f7f14342a76b2e6b": {
+            "label": "Binance Hot Wallet 8",
+            "type": "CEX",
+            "risk_note": "Major centralised exchange deposit address"
+        },
+        "0xbe0eb53f46cd790cd13851d5eff43d12404d33e8": {
+            "label": "Binance Cold Wallet 1",
+            "type": "CEX",
+            "risk_note": "Exchange cold storage"
+        },
+        "0xf977814e90da44bfa03b6295a0616a897441acec": {
+            "label": "Binance Cold Wallet 2",
+            "type": "CEX",
+            "risk_note": "Exchange cold storage"
+        },
+        "0x28c6c06298d514db089934071355e5743bf21d60": {
+            "label": "Binance Cold Wallet 3",
+            "type": "CEX",
+            "risk_note": "Exchange cold storage"
+        },
+        "0x21a31ee1afc51d94c2efccaa2092ad1028285549": {
+            "label": "Binance Cold Wallet 4",
+            "type": "CEX",
+            "risk_note": "Exchange cold storage"
+        },
+        "0xa090e606e30bd747d4e6245a1517ebe430f0057e": {
+            "label": "Coinbase Hot Wallet 1",
+            "type": "CEX",
+            "risk_note": "Major centralised exchange deposit address"
+        },
+        "0x71660c4005ba85c37ccec55d0c4493e66fe775d3": {
+            "label": "Coinbase Hot Wallet 2",
+            "type": "CEX",
+            "risk_note": "Major centralised exchange deposit address"
+        },
+        "0x503828976d22510aad0201ac7ec88293211d23da": {
+            "label": "Coinbase Hot Wallet 3",
+            "type": "CEX",
+            "risk_note": "Major centralised exchange deposit address"
+        },
+        "0xddfabcdc4d8ffc6d5beaf154f18b778f892a0740": {
+            "label": "Coinbase Hot Wallet 4",
+            "type": "CEX",
+            "risk_note": "Major centralised exchange deposit address"
+        },
+        "0x77696bb39917c91a0c3908d577d5e322095425ca": {
+            "label": "Coinbase Prime 1",
+            "type": "CEX",
+            "risk_note": "Coinbase Prime institutional custody"
+        },
+        "0x02466e547bfdab679fc49e96bbfc62b9747d997c": {
+            "label": "Coinbase Prime 2",
+            "type": "CEX",
+            "risk_note": "Coinbase Prime institutional custody"
+        },
+        "0xa9d1e08c7793af67e9d92fe308d5697fb81d3e43": {
+            "label": "Coinbase Cold Wallet",
+            "type": "CEX",
+            "risk_note": "Coinbase cold storage"
+        },
+        "0x2910543af39aba0cd09dbb2d50200b3e800a63d2": {
+            "label": "Kraken Hot Wallet 1",
+            "type": "CEX",
+            "risk_note": "Major centralised exchange deposit address"
+        },
+        "0x0a869d79a7052c7f1b55a8ebabbea3420f0d1e13": {
+            "label": "Kraken Hot Wallet 2",
+            "type": "CEX",
+            "risk_note": "Major centralised exchange deposit address"
+        },
+        "0xe853c56864a2ebe4576a807d26fdc4a0ada51919": {
+            "label": "Kraken Hot Wallet 3",
+            "type": "CEX",
+            "risk_note": "Major centralised exchange deposit address"
+        },
+        "0x267be1c1d684f78cb4f6a176c4911b741e4ffdc0": {
+            "label": "Kraken Hot Wallet 4",
+            "type": "CEX",
+            "risk_note": "Major centralised exchange deposit address"
+        },
+        "0xae2d4617c862309a3d75a0ffb358c7a5009c673f": {
+            "label": "Kraken Hot Wallet 5",
+            "type": "CEX",
+            "risk_note": "Major centralised exchange deposit address"
+        },
+        "0x43984d578803891dfa9706bdeee6078d80cfc79e": {
+            "label": "KuCoin Hot Wallet 1",
+            "type": "CEX",
+            "risk_note": "Centralised exchange hot wallet"
+        },
+        "0xd6216fc19db775df9774a6e33526131da7d19a2c": {
+            "label": "KuCoin Hot Wallet 2",
+            "type": "CEX",
+            "risk_note": "Centralised exchange hot wallet"
+        },
+        "0xa1d8d972560c2f8144af871db508f0b0b10a3fbf": {
+            "label": "KuCoin Hot Wallet 3",
+            "type": "CEX",
+            "risk_note": "Centralised exchange hot wallet"
+        },
+        "0xab5c66752a9e8167967685f1450532fb96d5d24f": {
+            "label": "Huobi Hot Wallet 1",
+            "type": "CEX",
+            "risk_note": "Centralised exchange hot wallet"
+        },
+        "0x46705dfff24256421a05d056c29e81bdc09723b8": {
+            "label": "Huobi Hot Wallet 2",
+            "type": "CEX",
+            "risk_note": "Centralised exchange hot wallet"
+        },
+        "0xa929022c9107643561af3c0f024e1f4e85a6e56b": {
+            "label": "Huobi Hot Wallet 3",
+            "type": "CEX",
+            "risk_note": "Centralised exchange hot wallet"
+        },
+        "0x0d0707963952f2fba59dd06f2b425ace40b492fe": {
+            "label": "Gate.io Hot Wallet 1",
+            "type": "CEX",
+            "risk_note": "Centralised exchange hot wallet"
+        },
+        "0x7793cd85c11a924478d358d49b05b37e91b5810f": {
+            "label": "Gate.io Hot Wallet 2",
+            "type": "CEX",
+            "risk_note": "Centralised exchange hot wallet"
+        },
+        "0xd793281182a5e3e0262fdecbe50ea73a3bd912b7": {
+            "label": "Gemini Hot Wallet 1",
+            "type": "CEX",
+            "risk_note": "Centralised exchange hot wallet"
+        },
+        "0x61edcdf5bb737adffe5043706e7c5bb1f1a56eea": {
+            "label": "Gemini Hot Wallet 2",
+            "type": "CEX",
+            "risk_note": "Centralised exchange hot wallet"
+        },
+        "0x6262998ced04146fa42253a5c0af90ca02dfd2a3": {
+            "label": "Crypto.com Hot Wallet",
+            "type": "CEX",
+            "risk_note": "Centralised exchange hot wallet"
+        },
+        "0x46340b20830761efd32832a74d7169b29feb9758": {
+            "label": "Crypto.com Cold Wallet",
+            "type": "CEX",
+            "risk_note": "Exchange cold storage"
+        },
+        "0x1151314c646ce4e0efd76d1af4760ae66a9fe30f": {
+            "label": "Bitfinex Hot Wallet 1",
+            "type": "CEX",
+            "risk_note": "Centralised exchange hot wallet"
+        },
+        "0x742d35cc6634c0532925a3b844bc454e4438f44e": {
+            "label": "Bitfinex Hot Wallet 2",
+            "type": "CEX",
+            "risk_note": "Centralised exchange hot wallet"
+        },
+        "0xfbb1b73c4f0bda4f67dca266ce6ef42f520fbb98": {
+            "label": "Bittrex",
+            "type": "CEX",
+            "risk_note": "Centralised exchange hot wallet"
+        },
+        "0x3cfd751fd5e5f27f1bc3ef9252e16e29be2870b0": {
+            "label": "OKX Hot Wallet 1",
+            "type": "CEX",
+            "risk_note": "Major centralised exchange deposit address"
+        },
+        "0x6cc5f688a315f3dc28a7781717a9a798a59fda7b": {
+            "label": "OKX Hot Wallet 2",
+            "type": "CEX",
+            "risk_note": "Major centralised exchange deposit address"
+        },
+        "0x6ccc5ad199bf1701407586e1dbf75cf0b1f3d2b0": {
+            "label": "OKX Hot Wallet 3",
+            "type": "CEX",
+            "risk_note": "Major centralised exchange deposit address"
+        },
+        "0x236f9f97e0e62388479bf9e5ba4889e46b0273c3": {
+            "label": "Bybit Hot Wallet 1",
+            "type": "CEX",
+            "risk_note": "Centralised exchange hot wallet"
+        },
+        "0xf89d7b9c864f589bbf53a82105107622b35eaa40": {
+            "label": "Bybit Hot Wallet 2",
+            "type": "CEX",
+            "risk_note": "Centralised exchange hot wallet"
+        },
+        "0xbe0eb53f46cd790cd13851d5eff43d12404d33e9": {
+            "label": "Poloniex Hot Wallet",
+            "type": "CEX",
+            "risk_note": "Centralised exchange hot wallet"
+        },
+        "0x32598293906b9b1e8c0cd0c5e990a8e0a5cff3d2": {
+            "label": "MEXC Hot Wallet",
+            "type": "CEX",
+            "risk_note": "Centralised exchange hot wallet"
+        },
+        "0x0b7a434782792b539623fd72a428838ea4173b22": {
+            "label": "Inferred CEX Hot Wallet 1",
+            "type": "CEX",
+            "risk_note": "Inferred from high degree centrality in dataset"
+        },
+        "0x00000000006c3852cbef3e08e8df289169ede581": {
+            "label": "Inferred CEX Hot Wallet 2",
+            "type": "CEX",
+            "risk_note": "Inferred from high degree centrality in dataset"
+        },
+        "0xeb2629a2734e272bcc07bda959863f316f4bd4cf": {
+            "label": "Inferred CEX Hot Wallet 3",
+            "type": "CEX",
+            "risk_note": "Inferred from high degree centrality in dataset"
+        },
+        "0x0000000000000068f116a894984e2db1123eb395": {
+            "label": "Inferred CEX Hot Wallet 4",
+            "type": "CEX",
+            "risk_note": "Inferred from high degree centrality in dataset"
+        },
+        "0x74de5d4fcbf63e00296fd95d33236b9794016631": {
+            "label": "Inferred CEX Hot Wallet 5",
+            "type": "CEX",
+            "risk_note": "Inferred from high degree centrality in dataset"
+        },
+        "0x00000000000000adc04c56bf30ac9d3c0aaf14dc": {
+            "label": "Inferred CEX Hot Wallet 6",
+            "type": "CEX",
+            "risk_note": "Inferred from high degree centrality in dataset"
+        },
+        "0x3cd751e6b0078be393132286c442345e5dc49699": {
+            "label": "Inferred CEX Hot Wallet 7",
+            "type": "CEX",
+            "risk_note": "Inferred from high degree centrality in dataset"
+        },
+        "0x142c706f99d94f0254f198fd696a29ad56fec609": {
+            "label": "Inferred CEX Hot Wallet 8",
+            "type": "CEX",
+            "risk_note": "Inferred from high degree centrality in dataset"
+        }
     },
-    "0xd551234ae421e3bcba99a0da6d736074f22192ff": {
-      "label": "Binance Hot Wallet 2",
-      "type": "known_cex",
-      "risk_note": "Major centralised exchange deposit address"
+    "known_dex": {
+        "0x7a250d5630b4cf539739df2c5dacb4c659f2488d": {
+            "label": "Uniswap V2 Router",
+            "type": "DEX",
+            "risk_note": "Decentralised exchange router"
+        },
+        "0xe592427a0aece92de3edee1f18e0157c05861564": {
+            "label": "Uniswap V3 Router",
+            "type": "DEX",
+            "risk_note": "Decentralised exchange router"
+        },
+        "0x68b3465833fb72a70ecdf485e0e4c7bd8665fc45": {
+            "label": "Uniswap Universal Router",
+            "type": "DEX",
+            "risk_note": "Decentralised exchange router"
+        },
+        "0x3fc91a3afd70395cd496c647d5a6cc9d4b2b7fad": {
+            "label": "Uniswap Universal Router 2",
+            "type": "DEX",
+            "risk_note": "Decentralised exchange router"
+        },
+        "0x5c69bee701ef814a2b6a3edd4b1652cb9cc5aa6f": {
+            "label": "Uniswap V2 Factory",
+            "type": "DEX",
+            "risk_note": "DEX factory contract"
+        },
+        "0x1f98431c8ad98523631ae4a59f267346ea31f984": {
+            "label": "Uniswap V3 Factory",
+            "type": "DEX",
+            "risk_note": "DEX factory contract"
+        },
+        "0xd9e1ce17f2641f24ae83637ab66a2cca9c378b9f": {
+            "label": "SushiSwap Router",
+            "type": "DEX",
+            "risk_note": "Decentralised exchange router"
+        },
+        "0xef1c6e67703c7bd7107eed8303fbe6ec2554bf6b": {
+            "label": "SushiSwap V2 Router",
+            "type": "DEX",
+            "risk_note": "Decentralised exchange router"
+        },
+        "0x1111111254fb6c44bac0bed2854e76f90643097d": {
+            "label": "1inch v3 Router",
+            "type": "DEX",
+            "risk_note": "DEX aggregator"
+        },
+        "0x1111111254eeb25477b68fb85ed929f73a960582": {
+            "label": "1inch v5 Router",
+            "type": "DEX",
+            "risk_note": "DEX aggregator"
+        },
+        "0x111111125421ca6dc452d289314280a0f8842a65": {
+            "label": "1inch v6 Router",
+            "type": "DEX",
+            "risk_note": "DEX aggregator"
+        },
+        "0xdef1c0ded9bec7f1a1670819833240f027b25eff": {
+            "label": "0x Exchange Proxy",
+            "type": "DEX",
+            "risk_note": "DEX aggregator"
+        },
+        "0xba12222222228d8ba445958a75a0704d566bf2c8": {
+            "label": "Balancer Vault",
+            "type": "DEX",
+            "risk_note": "Decentralised exchange / AMM"
+        },
+        "0xbeef01735c132ada46aa9aa4c54623caa92a64cb": {
+            "label": "Curve.fi Router",
+            "type": "DEX",
+            "risk_note": "Decentralised stablecoin exchange"
+        },
+        "0xf403c135812408bfbe8713b5a23a04b3d48aae31": {
+            "label": "Curve Finance Convex Booster",
+            "type": "DEX",
+            "risk_note": "Curve yield optimizer"
+        },
+        "0x9008d19f58aabd9ed0d60971565aa8510560ab41": {
+            "label": "CoW Protocol Settlement",
+            "type": "DEX",
+            "risk_note": "DEX aggregator / batch settlement"
+        },
+        "0x1231deb6f5749ef6ce6943a275a1d3e7486f4eae": {
+            "label": "LiFi Diamond Router",
+            "type": "DEX",
+            "risk_note": "Cross-chain DEX aggregator"
+        },
+        "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": {
+            "label": "USDC Token Contract",
+            "type": "DEX",
+            "risk_note": "Stablecoin contract"
+        },
+        "0xdac17f958d2ee523a2206206994597c13d831ec7": {
+            "label": "USDT Token Contract",
+            "type": "DEX",
+            "risk_note": "Stablecoin contract"
+        },
+        "0x6b175474e89094c44da98b954eedeac495271d0f": {
+            "label": "DAI Token Contract",
+            "type": "DEX",
+            "risk_note": "Stablecoin contract"
+        }
     },
-    "0x564286362092d8e7936f0549571a803b203aaced": {
-      "label": "Binance Hot Wallet 3",
-      "type": "known_cex",
-      "risk_note": "Major centralised exchange deposit address"
+    "mixer_suspected": {
+        "0x722122df12d4e14e13ac3b6895a86e84145b6967": {
+            "label": "Tornado Cash Router",
+            "type": "MIXER",
+            "risk_note": "OFAC-sanctioned privacy mixer - CRITICAL RISK"
+        },
+        "0xd90e2f925da726b50c4ed8d0fb90ad053324f31b": {
+            "label": "Tornado Cash 0.1 ETH Pool",
+            "type": "MIXER",
+            "risk_note": "OFAC-sanctioned privacy mixer - CRITICAL RISK"
+        },
+        "0x910cbd523d972eb0a6f4cae4618ad62622b39dbf": {
+            "label": "Tornado Cash 1 ETH Pool",
+            "type": "MIXER",
+            "risk_note": "OFAC-sanctioned privacy mixer - CRITICAL RISK"
+        },
+        "0xa160cdab225685da1d56aa342ad8841c3b53f291": {
+            "label": "Tornado Cash 10 ETH Pool",
+            "type": "MIXER",
+            "risk_note": "OFAC-sanctioned privacy mixer - CRITICAL RISK"
+        },
+        "0xa60c772958a3ed426c63312ebd982e0db0af28c3": {
+            "label": "Tornado Cash 100 ETH Pool",
+            "type": "MIXER",
+            "risk_note": "OFAC-sanctioned privacy mixer - CRITICAL RISK"
+        },
+        "0x12d66f87a04a9e220c9d6036430a03a67e2ca40b": {
+            "label": "Tornado Cash Governance",
+            "type": "MIXER",
+            "risk_note": "OFAC-sanctioned mixer governance - CRITICAL RISK"
+        },
+        "0x47ce0c6ed5b0ce3d3a51fdb1c52dc66a7c3c2936": {
+            "label": "Tornado Cash TORN Token",
+            "type": "MIXER",
+            "risk_note": "OFAC-sanctioned mixer token - CRITICAL RISK"
+        },
+        "0x23773e65ed146a459667ab56d87b7c11fef6998b": {
+            "label": "Tornado Cash Nova",
+            "type": "MIXER",
+            "risk_note": "OFAC-sanctioned privacy mixer (arbitrary amounts) - CRITICAL RISK"
+        },
+        "0x1e34a77868e19a6647b1f2f47b51ed72dede95dd": {
+            "label": "RailGun Privacy System",
+            "type": "MIXER",
+            "risk_note": "On-chain privacy protocol - HIGH RISK"
+        },
+        "0xfa7093cdd9ee6932b4eb2c9e1cde7ce00b1fa4b": {
+            "label": "RailGun Proxy",
+            "type": "MIXER",
+            "risk_note": "On-chain privacy protocol - HIGH RISK"
+        },
+        "0xb5d85cbf7cb3ee0d56b3bb207d5fc4b82f43f511": {
+            "label": "FixedFloat",
+            "type": "MIXER",
+            "risk_note": "No-KYC swap service linked to laundering activity - HIGH RISK"
+        },
+        "0x9ef6f134c0bab3d62c1b50e9bc17ee7e49de8a3f": {
+            "label": "eXch Exchange",
+            "type": "MIXER",
+            "risk_note": "No-KYC swap service - HIGH RISK"
+        },
+        "0xb04a737f5c89a2ada8b9d8f3e23f34f8b3834e7a": {
+            "label": "Sinbad.io (Chipmixer successor)",
+            "type": "MIXER",
+            "risk_note": "OFAC-sanctioned mixer - CRITICAL RISK"
+        }
     },
-    "0x0681d8db095565fe8a346fa0277bffde9c0edbbf": {
-      "label": "Binance Hot Wallet 4",
-      "type": "known_cex",
-      "risk_note": "Major centralised exchange deposit address"
+    "bridge": {
+        "0x40ec5b33f54e0e8a33a975908c5ba1c14e5bbbdf": {
+            "label": "Polygon Bridge (PoS)",
+            "type": "BRIDGE",
+            "risk_note": "Cross-chain bridge - funds may appear on Polygon"
+        },
+        "0xa0c68c638235ee32657e8f720a23cec1bfc77c77": {
+            "label": "Polygon Bridge 2",
+            "type": "BRIDGE",
+            "risk_note": "Cross-chain bridge"
+        },
+        "0x8eb8a3b98659cce290402893d0123abb75e3ab28": {
+            "label": "Avalanche Bridge",
+            "type": "BRIDGE",
+            "risk_note": "Cross-chain bridge - funds may appear on Avalanche"
+        },
+        "0x737901bea3eeb88459df9ef1be8ff3ae1b42a2ba": {
+            "label": "Arbitrum Bridge",
+            "type": "BRIDGE",
+            "risk_note": "Cross-chain bridge - funds may appear on Arbitrum"
+        },
+        "0x99c9fc46f92e8a1c0dec1b1747d010903e884be1": {
+            "label": "Optimism Bridge",
+            "type": "BRIDGE",
+            "risk_note": "Cross-chain bridge - funds may appear on Optimism"
+        },
+        "0x3154cf16ccdb4c6d922629664174b904d80f2c35": {
+            "label": "Base Bridge",
+            "type": "BRIDGE",
+            "risk_note": "Cross-chain bridge - funds may appear on Base"
+        },
+        "0x3ee18b2214aff97000d974cf647e7c347e8fa585": {
+            "label": "Wormhole Bridge",
+            "type": "BRIDGE",
+            "risk_note": "Cross-chain bridge - multi-chain (previously exploited)"
+        },
+        "0xdf0770df86a8034b3efef0a1bb3c889b8332ff56": {
+            "label": "Stargate Finance ETH Pool",
+            "type": "BRIDGE",
+            "risk_note": "Layerzero-based cross-chain bridge"
+        },
+        "0x296f55f8fb28e498b858d0bcda06d955b2cb3f97": {
+            "label": "Hop Protocol Bridge (DAI)",
+            "type": "BRIDGE",
+            "risk_note": "Optimistic rollup bridge"
+        },
+        "0x3666f603cc164936c1b87e207f36beba4ac5f18a": {
+            "label": "Hop Protocol (USDC)",
+            "type": "BRIDGE",
+            "risk_note": "Optimistic rollup bridge"
+        },
+        "0x4d9079bb4165aeb4084c526a32695dcfd2f77381": {
+            "label": "Across Protocol Bridge",
+            "type": "BRIDGE",
+            "risk_note": "UMA optimistic oracle bridge"
+        },
+        "0x5427fefa711eff984124bfbb1ab6fbf5e3da1820": {
+            "label": "Celer cBridge",
+            "type": "BRIDGE",
+            "risk_note": "Cross-chain bridge"
+        },
+        "0x2796317b0ff8538f253012862c06787adfb8ceb6": {
+            "label": "Synapse Bridge",
+            "type": "BRIDGE",
+            "risk_note": "Cross-chain bridge"
+        },
+        "0x4dbd4fc535ac27206064b68ffcf827b0a60bab3f": {
+            "label": "Arbitrum Inbox (L1->L2)",
+            "type": "BRIDGE",
+            "risk_note": "Native Arbitrum bridge deposit contract"
+        },
+        "0xa88d8421f851f90ac42bf26ba8f0eb5595e1f765": {
+            "label": "Ronin Bridge",
+            "type": "BRIDGE",
+            "risk_note": "Axie Infinity bridge - previously exploited for $625M"
+        },
+        "0x6b5994c4b02b7bc4b49ccc0f0c4c58a2082f6086": {
+            "label": "Multichain (AnySwap) Router",
+            "type": "BRIDGE",
+            "risk_note": "Cross-chain bridge (exploited/defunct)"
+        }
     },
-    "0xfe9e8709d3215310075d67e3ed32a380ccf451c8": {
-      "label": "Binance Hot Wallet 5",
-      "type": "known_cex",
-      "risk_note": "Major centralised exchange deposit address"
-    },
-    "0x4e9ce36e442e55ecd9025b9a6e0d88485d628a67": {
-      "label": "Binance Hot Wallet 6",
-      "type": "known_cex",
-      "risk_note": "Major centralised exchange deposit address"
-    },
-    "0xa090e606e30bd747d4e6245a1517ebe430f0057e": {
-      "label": "Coinbase Hot Wallet 1",
-      "type": "known_cex",
-      "risk_note": "Major centralised exchange deposit address"
-    },
-    "0x71660c4005ba85c37ccec55d0c4493e66fe775d3": {
-      "label": "Coinbase Hot Wallet 2",
-      "type": "known_cex",
-      "risk_note": "Major centralised exchange deposit address"
-    },
-    "0x503828976d22510aad0201ac7ec88293211d23da": {
-      "label": "Coinbase Hot Wallet 3",
-      "type": "known_cex",
-      "risk_note": "Major centralised exchange deposit address"
-    },
-    "0xddfabcdc4d8ffc6d5beaf154f18b778f892a0740": {
-      "label": "Coinbase Hot Wallet 4",
-      "type": "known_cex",
-      "risk_note": "Major centralised exchange deposit address"
-    },
-    "0x2910543af39aba0cd09dbb2d50200b3e800a63d2": {
-      "label": "Kraken Hot Wallet 1",
-      "type": "known_cex",
-      "risk_note": "Major centralised exchange deposit address"
-    },
-    "0x0a869d79a7052c7f1b55a8ebabbea3420f0d1e13": {
-      "label": "Kraken Hot Wallet 2",
-      "type": "known_cex",
-      "risk_note": "Major centralised exchange deposit address"
-    },
-    "0xe853c56864a2ebe4576a807d26fdc4a0ada51919": {
-      "label": "Kraken Hot Wallet 3",
-      "type": "known_cex",
-      "risk_note": "Major centralised exchange deposit address"
-    },
-    "0x267be1c1d684f78cb4f6a176c4911b741e4ffdc0": {
-      "label": "Kraken Hot Wallet 4",
-      "type": "known_cex",
-      "risk_note": "Major centralised exchange deposit address"
-    },
-    "0xfbb1b73c4f0bda4f67dca266ce6ef42f520fbb98": {
-      "label": "Bittrex",
-      "type": "known_cex",
-      "risk_note": "Centralised exchange hot wallet"
-    },
-    "0x3cfd751fd5e5f27f1bc3ef9252e16e29be2870b0": {
-      "label": "OKX Hot Wallet",
-      "type": "known_cex",
-      "risk_note": "Major centralised exchange deposit address"
-    },
-    "0x6cc5f688a315f3dc28a7781717a9a798a59fda7b": {
-      "label": "OKX Hot Wallet 2",
-      "type": "known_cex",
-      "risk_note": "Major centralised exchange deposit address"
-    },
-    "0x236f9f97e0e62388479bf9e5ba4889e46b0273c3": {
-      "label": "Bybit Hot Wallet",
-      "type": "known_cex",
-      "risk_note": "Centralised exchange hot wallet"
-    },
-    "0xf977814e90da44bfa03b6295a0616a897441acec": {
-      "label": "Binance Cold Wallet",
-      "type": "known_cex",
-      "risk_note": "Exchange cold storage"
-    },
-    "0x28c6c06298d514db089934071355e5743bf21d60": {
-      "label": "Binance Cold Wallet 2",
-      "type": "known_cex",
-      "risk_note": "Exchange cold storage"
+    "inferred_exchanges": {
+        "0xeb2629a2734e272bcc07bda959863f316f4bd4cf": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0xb5d85cbf7cb3ee0d56b3bb207d5fc4b82f43f511": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x74de5d4fcbf63e00296fd95d33236b9794016631": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x9008d19f58aabd9ed0d60971565aa8510560ab41": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x74312363e45dcaba76c59ec49a7aa8a65a67eed3": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x46340b20830761efd32832a74d7169b29feb9758": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x0000000000a39bb272e79075ade125fd351887ac": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x9696f59e4d72e237be84ffd425dcad154bf96976": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x00000000006c3852cbef3e08e8df289169ede581": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0xc35f3f92a9f27a157b309a9656cfea30e5c9cce3": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x7be8076f4ea4a4ad08075c2508e481d6c946d12b": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x3fc91a3afd70395cd496c647d5a6cc9d4b2b7fad": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x912fd21d7a69678227fe6d08c64222db41477ba0": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x3fad44f892b986263ac69db971db8da172185387": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0xa9d1e08c7793af67e9d92fe308d5697fb81d3e43": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0xeff998a24520cd3de71e6eea21833b3021bed9f2": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0xd24400ae8bfebb18ca49be86258a3c749cf46853": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0xcda72070e455bb31c7690a170224ce43623d0b6f": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x7bd29408f11d2bfc23c34f18275bbf23bb716bc7": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x4976a4a02f38326660d17bf34b431dc6e2eb2327": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x17376d6016c254335ea499cb0c3ef619b2cbf584": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0xb2ecfe4e4d61f8790bbb9de2d1259b9e2410cea5": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x0b7a434782792b539623fd72a428838ea4173b22": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x00000000000000adc04c56bf30ac9d3c0aaf14dc": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0xc098b2a3aa256d2140208c3de6543aaef5cd3a94": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x9b814233894cd227f561b78cc65891aa55c62ad2": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x3cd751e6b0078be393132286c442345e5dc49699": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x83c8f28c26bf6aaca652df1dbbe0e1b56f8baba2": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x9757f2d2b135150bbeb65308d4a91804107cd8d6": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0xdef1c0ded9bec7f1a1670819833240f027b25eff": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x80c67432656d59144ceff962e8faf8926599bcf8": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x00000000000001ad428e4906ae43d8f9852d0dd6": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0xa858ddc0445d8131dac4d1de01f834ffcba52ef1": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0xef1c6e67703c7bd7107eed8303fbe6ec2554bf6b": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x6000da47483062a0d734ba3dc7576ce6a0b645c4": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x5c7bcd6e7de5423a257d81b442095a1a6ced35c5": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0xb47e3cd837ddf8e4c57f05d70ab865de6e193bbb": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x142c706f99d94f0254f198fd696a29ad56fec609": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x000000000000ad05ccc4f10045630fb830b95127": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x18c2e87d183c5338a9142f97db176f3832b1d6de": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0xb8901acb165ed027e32754e0ffe830802919727f": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x8484ef722627bf18ca5ae6bcf031c23e6e922b30": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0xd108fd0e8c8e71552a167e7a44ff1d345d233ba6": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0xddfabcdc4d8ffc6d5beaf154f18b778f892a0740": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0x7f268357a8c2552623316e2562d90e642bb538e5": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0xd9e1ce17f2641f24ae83637ab66a2cca9c378b9f": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        },
+        "0xc36442b4a4522e871399cd717abdd847ab11fe88": {
+            "name": "Generic Funder",
+            "type": "CEX"
+        }
     }
-  },
-
-  "known_dex": {
-    "0x7a250d5630b4cf539739df2c5dacb4c659f2488d": {
-      "label": "Uniswap V2 Router",
-      "type": "known_dex",
-      "risk_note": "Decentralised exchange router"
-    },
-    "0xe592427a0aece92de3edee1f18e0157c05861564": {
-      "label": "Uniswap V3 Router",
-      "type": "known_dex",
-      "risk_note": "Decentralised exchange router"
-    },
-    "0x68b3465833fb72a70ecdf485e0e4c7bd8665fc45": {
-      "label": "Uniswap Universal Router",
-      "type": "known_dex",
-      "risk_note": "Decentralised exchange router"
-    },
-    "0xd9e1ce17f2641f24ae83637ab66a2cca9c378b9f": {
-      "label": "SushiSwap Router",
-      "type": "known_dex",
-      "risk_note": "Decentralised exchange router"
-    },
-    "0x1111111254fb6c44bac0bed2854e76f90643097d": {
-      "label": "1inch v3 Router",
-      "type": "known_dex",
-      "risk_note": "DEX aggregator"
-    },
-    "0x1111111254eeb25477b68fb85ed929f73a960582": {
-      "label": "1inch v5 Router",
-      "type": "known_dex",
-      "risk_note": "DEX aggregator"
-    },
-    "0xdef1c0ded9bec7f1a1670819833240f027b25eff": {
-      "label": "0x Exchange Proxy",
-      "type": "known_dex",
-      "risk_note": "DEX aggregator"
-    },
-    "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": {
-      "label": "USDC Token Contract",
-      "type": "known_dex",
-      "risk_note": "Stablecoin contract — transfers here are token ops"
-    },
-    "0xdac17f958d2ee523a2206206994597c13d831ec7": {
-      "label": "USDT Token Contract",
-      "type": "known_dex",
-      "risk_note": "Stablecoin contract — transfers here are token ops"
-    }
-  },
-
-  "mixer_suspected": {
-    "0x722122df12d4e14e13ac3b6895a86e84145b6967": {
-      "label": "Tornado Cash Router",
-      "type": "mixer_suspected",
-      "risk_note": "OFAC-sanctioned privacy mixer — HIGH RISK"
-    },
-    "0xd90e2f925da726b50c4ed8d0fb90ad053324f31b": {
-      "label": "Tornado Cash 0.1 ETH Pool",
-      "type": "mixer_suspected",
-      "risk_note": "OFAC-sanctioned privacy mixer — HIGH RISK"
-    },
-    "0x910cbd523d972eb0a6f4cae4618ad62622b39dbf": {
-      "label": "Tornado Cash 1 ETH Pool",
-      "type": "mixer_suspected",
-      "risk_note": "OFAC-sanctioned privacy mixer — HIGH RISK"
-    },
-    "0xa160cdab225685da1d56aa342ad8841c3b53f291": {
-      "label": "Tornado Cash 10 ETH Pool",
-      "type": "mixer_suspected",
-      "risk_note": "OFAC-sanctioned privacy mixer — HIGH RISK"
-    },
-    "0xa60c772958a3ed426c63312ebd982e0db0af28c3": {
-      "label": "Tornado Cash 100 ETH Pool",
-      "type": "mixer_suspected",
-      "risk_note": "OFAC-sanctioned privacy mixer — HIGH RISK"
-    },
-    "0x12d66f87a04a9e220c9d6036430a03a67e2ca40b": {
-      "label": "Tornado Cash Governance",
-      "type": "mixer_suspected",
-      "risk_note": "OFAC-sanctioned privacy mixer governance — HIGH RISK"
-    },
-    "0x47ce0c6ed5b0ce3d3a51fdb1c52dc66a7c3c2936": {
-      "label": "Tornado Cash TORN Token",
-      "type": "mixer_suspected",
-      "risk_note": "OFAC-sanctioned mixer token — HIGH RISK"
-    }
-  },
-
-  "bridge": {
-    "0x40ec5b33f54e0e8a33a975908c5ba1c14e5bbbdf": {
-      "label": "Polygon Bridge",
-      "type": "bridge",
-      "risk_note": "Cross-chain bridge — funds may appear on another chain"
-    },
-    "0xa0c68c638235ee32657e8f720a23cec1bfc77c77": {
-      "label": "Polygon Bridge 2",
-      "type": "bridge",
-      "risk_note": "Cross-chain bridge"
-    },
-    "0x8eb8a3b98659cce290402893d0123abb75e3ab28": {
-      "label": "Avalanche Bridge",
-      "type": "bridge",
-      "risk_note": "Cross-chain bridge — funds may appear on another chain"
-    },
-    "0x737901bea3eeb88459df9ef1be8ff3ae1b42a2ba": {
-      "label": "Arbitrum Bridge",
-      "type": "bridge",
-      "risk_note": "Cross-chain bridge — funds may appear on Arbitrum"
-    },
-    "0x99c9fc46f92e8a1c0dec1b1747d010903e884be1": {
-      "label": "Optimism Bridge",
-      "type": "bridge",
-      "risk_note": "Cross-chain bridge — funds may appear on Optimism"
-    },
-    "0x3154cf16ccdb4c6d922629664174b904d80f2c35": {
-      "label": "Base Bridge",
-      "type": "bridge",
-      "risk_note": "Cross-chain bridge — funds may appear on Base"
-    }
-  }
 }

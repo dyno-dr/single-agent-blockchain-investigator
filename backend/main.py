@@ -442,6 +442,14 @@ def _create_app() -> FastAPI:
     )
 
     # Order matters: middleware first, then exception handlers, then routers
+    from fastapi.middleware.cors import CORSMiddleware
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],  # Allow all origins for local dev
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     register_middleware(application)
     _register_exception_handlers(application)
     _register_routers(application, api_prefix=settings.api.prefix)

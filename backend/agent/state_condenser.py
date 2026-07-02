@@ -119,6 +119,26 @@ def condense_state(state: dict[str, Any]) -> ReportContext:
         mixer_contact = mixer_contact or bool(getattr(report, "mixer_interaction", False))
         cex_contact = cex_contact or bool(getattr(report, "known_cex_interaction", False))
         bridge_contact = bridge_contact or bool(getattr(report, "bridge_interaction", False))
+        
+    rugpull_reports = state.get("rugpull_reports", {})
+    for _wallet, report_dict in rugpull_reports.items():
+        for rule_dict in report_dict.get("triggered_rules", []):
+            if isinstance(rule_dict, dict) and rule_dict.get("triggered"):
+                # Map RugRuleResult to RuleResult
+                finding = RuleResult(
+                    rule_id=rule_dict.get("rule_id", "unknown"),
+                    rule_name=rule_dict.get("rule_name", "Unknown Rule"),
+                    rule_category="RUGPULL",
+                    triggered=True,
+                    severity=rule_dict.get("severity", "LOW"),
+                    description=rule_dict.get("description", ""),
+                    wallet_address=_wallet,
+                    tx_hash=rule_dict.get("tx_hash")
+                )
+                triggered_rules.append(finding)
+                tx_hash = finding.tx_hash
+                if tx_hash:
+                    evidence_refs.setdefault(finding.rule_id, []).append(tx_hash)
 
     # ── Trace graph summary ───────────────────────────────────────────────────
     total_wallets_traced = len(set(traced_wallets))

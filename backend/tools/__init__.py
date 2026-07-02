@@ -10,6 +10,7 @@ from `backend.tools`, never from sub-modules directly.
 from backend.tools.base import BaseTool
 from backend.tools.graph_builder import GraphBuilderTool
 from backend.tools.report_generator import ReportGeneratorTool
+from backend.tools.rugpull_tool import RugpullTool
 from backend.tools.suspicion_detector import SuspicionDetectorTool
 from backend.tools.trace_scorer import TraceScorerTool
 from backend.tools.tracing_engine import TracingEngineTool
@@ -21,6 +22,7 @@ __all__ = [
     "BaseTool",
     "GraphBuilderTool",
     "ReportGeneratorTool",
+    "RugpullTool",
     "SuspicionDetectorTool",
     "TraceScorerTool",
     "TracingEngineTool",

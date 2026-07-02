@@ -114,6 +114,15 @@ async def planner_node(state: AgentState) -> dict[str, Any]:
 
     stats = profile.stats
 
+    # ── Early exit: wallet has no transactions → skip LLM ───────────────────
+    if stats.total_transactions == 0:
+        logger.info("planner_skip_no_transactions", wallet=wallet)
+        directive = TraceDirective.fallback(
+            top_candidates=scored_candidates,
+            reason="wallet has no transactions in lookback window — skipping LLM",
+        )
+        return _build_return(wallet, directive)
+
     # Collect known entity labels from profile transactions
     entity_labels: set[str] = set()
     for tx in profile.transactions:
@@ -181,6 +190,14 @@ async def planner_node(state: AgentState) -> dict[str, Any]:
             if text.lower().startswith("json"):
                 text = text[4:]
             text = text.strip()
+
+        # Sanitize: remove non-ASCII / non-printable chars that break json.loads
+        import re as _re
+        text = _re.sub(r'[^\x20-\x7E]', '', text)
+        # Ensure the string is properly closed — truncate at last '}'
+        last_brace = text.rfind('}')
+        if last_brace != -1:
+            text = text[:last_brace + 1]
 
         parsed = json.loads(text)
         raw_strategy    = str(parsed.get("strategy", "")).upper()

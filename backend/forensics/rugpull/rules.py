@@ -15,6 +15,11 @@ RULE REGISTER:
   RUG-005  Scripted Timing (F5: entropy < threshold)       LOW (context)
   RUG-NEW-A Single Deployment Burner Pattern               MEDIUM
   RUG-NEW-B Ownership Transfer Detected (multi-hop hook)   HIGH
+  RUG-FP1  Mixer/Bridge First Inbound Source               HIGH
+  RUG-FP2  High Hop Count from Known Source (≥ 4 hops)     HIGH
+  RUG-FP3  High Fraction of Fresh Capital (≥ 50%)          HIGH / CRITICAL
+  RUG-FP4  Shared Upstream Funders (coordinated cluster)   CRITICAL
+  RUG-FP5  Structuring / Abnormal Seed Size                MEDIUM
 
 FEATURES INTENTIONALLY NOT TRIGGERED:
   F7 within-wallet similarity — hypothesis INVERTED by data (genuine > rugpull).
@@ -508,4 +513,297 @@ def evaluate_all(fv: FeatureVector, cfg: Any) -> list[RugRuleResult]:
         rule_005_scripted_timing(fv, cfg.RUG_005_SCRIPTED_ENTROPY_MAX),
         rule_new_a_single_deploy(fv, cfg.RUG_NEW_A_SINGLE_DEPLOY_WARMUP_MAX_HOURS),
         rule_new_b_ownership_transfer(fv),
+        # Funding Provenance rules (FP1-FP5)
+        rule_fp1_mixer_first_inbound(fv),
+        rule_fp2_high_hop_count(fv),
+        rule_fp3_fresh_capital(fv),
+        rule_fp4_shared_funders(fv),
+        rule_fp5_structuring(fv),
     ]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RUG-FP1 — Mixer / Bridge as First Inbound Source
+# ─────────────────────────────────────────────────────────────────────────────
+
+RULE_ID_FP1 = "RUG-FP1"
+RULE_NAME_FP1 = "Mixer / Bridge First Inbound Source"
+
+
+def rule_fp1_mixer_first_inbound(fv: FeatureVector) -> RugRuleResult:
+    """
+    Flags wallets whose very first inbound ETH came from a known mixer
+    (e.g. Tornado Cash) or bridge, indicating deliberate money-trail obfuscation.
+
+    Legitimate founders almost always receive their first ETH from a CEX
+    withdrawal. Receiving from a mixer is a very strong indicator of intent
+    to hide the operator's identity.
+    """
+    source = fv.fp_first_inbound_source_type
+    suspicious_sources = {"MIXER", "FRESH_WALLET"}
+
+    if source not in suspicious_sources:
+        return RugRuleResult.not_triggered(RULE_ID_FP1, RULE_NAME_FP1)
+
+    severity = "HIGH" if source == "MIXER" else "MEDIUM"
+    return RugRuleResult(
+        rule_id=RULE_ID_FP1,
+        rule_name=RULE_NAME_FP1,
+        triggered=True,
+        severity=severity,
+        description=(
+            f"First inbound ETH to this wallet came from a {source}. "
+            f"Legitimate founders almost always receive initial ETH from a CEX withdrawal."
+        ),
+        reasoning=(
+            "The source of a creator wallet's seed capital is a powerful forensic signal. "
+            "Centralized exchanges (CEX) perform KYC on withdrawals, creating an identity link. "
+            "Receiving seed capital from a mixer (e.g. Tornado Cash) is specifically designed "
+            "to sever that identity link. This is a deliberate obfuscation technique strongly "
+            "associated with operators who intend to avoid post-rugpull tracing."
+        ),
+        details={
+            "first_inbound_source_type": source,
+            "suspicious_sources": list(suspicious_sources),
+            "note": "CEX and BRIDGE sources are not flagged; MIXER and FRESH_WALLET are suspicious.",
+        },
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RUG-FP2 — High Hop Count from Known Source
+# ─────────────────────────────────────────────────────────────────────────────
+
+RULE_ID_FP2 = "RUG-FP2"
+RULE_NAME_FP2 = "High Hop Count from Known Source"
+
+
+def rule_fp2_high_hop_count(fv: FeatureVector) -> RugRuleResult:
+    """
+    Flags wallets that are ≥ 4 transaction hops away from any known
+    exchange, mixer, or bridge on the funding graph.
+
+    Legitimate wallets are typically 1 hop from a CEX (CEX → creator).
+    Sophisticated scammers insert multiple intermediate wallets (peel chains)
+    to increase the tracing difficulty. High hop counts are a strong signal.
+    """
+    hops = fv.fp_min_hops_to_known_source
+    if hops is None:
+        return RugRuleResult.not_triggered(RULE_ID_FP2, RULE_NAME_FP2)
+
+    _HIGH_HOPS = 4
+    if hops < _HIGH_HOPS:
+        return RugRuleResult.not_triggered(RULE_ID_FP2, RULE_NAME_FP2)
+
+    severity = "CRITICAL" if hops >= 6 else "HIGH"
+    return RugRuleResult(
+        rule_id=RULE_ID_FP2,
+        rule_name=RULE_NAME_FP2,
+        triggered=True,
+        severity=severity,
+        description=(
+            f"Creator wallet is {hops} hops away from the nearest known exchange / "
+            f"mixer / bridge on the transaction graph. "
+            f"(Threshold: ≥ {_HIGH_HOPS} hops = HIGH, ≥ 6 = CRITICAL)"
+        ),
+        reasoning=(
+            "Legitimate wallets funded from a centralized exchange are 1 hop away. "
+            "Sophisticated rugpull operators use 'peel chains' — a series of intermediate "
+            "disposable wallets that each pass funds forward — to increase the distance "
+            "between themselves and any traceable on/off-ramp. More hops = more deliberate "
+            "obfuscation effort = stronger signal of malicious intent."
+        ),
+        details={
+            "min_hops": hops,
+            "high_threshold": _HIGH_HOPS,
+            "critical_threshold": 6,
+        },
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RUG-FP3 — High Fraction of Seed Capital from Fresh Wallets
+# ─────────────────────────────────────────────────────────────────────────────
+
+RULE_ID_FP3 = "RUG-FP3"
+RULE_NAME_FP3 = "High Fraction of Seed Capital from Fresh Wallets"
+
+
+def rule_fp3_fresh_capital(fv: FeatureVector) -> RugRuleResult:
+    """
+    Flags wallets where more than 50% of pre-deployment seed capital came
+    from wallets that were created within the last 48 hours.
+
+    Math (from spec):
+        fraction_fresh = fresh_amount / total_seed ∈ [0, 1]
+        > 0.5 → HIGH
+        > 0.8 → CRITICAL
+
+    Fresh wallets are disposable identities. High fresh-capital fraction
+    is a classic money-layering technique to obscure the true funding source.
+    """
+    frac = fv.fp_fraction_fresh_capital
+    if frac is None:
+        return RugRuleResult.not_triggered(RULE_ID_FP3, RULE_NAME_FP3)
+
+    _HIGH = 0.50
+    _CRITICAL = 0.80
+
+    if frac < _HIGH:
+        return RugRuleResult.not_triggered(RULE_ID_FP3, RULE_NAME_FP3)
+
+    severity = "CRITICAL" if frac >= _CRITICAL else "HIGH"
+    return RugRuleResult(
+        rule_id=RULE_ID_FP3,
+        rule_name=RULE_NAME_FP3,
+        triggered=True,
+        severity=severity,
+        description=(
+            f"{frac:.1%} of this wallet's pre-deployment seed capital came from "
+            f"wallets created within 48 hours of the transfer. "
+            f"({'CRITICAL' if frac >= _CRITICAL else 'HIGH'} threshold: "
+            f">= {_CRITICAL:.0%} or >= {_HIGH:.0%})"
+        ),
+        reasoning=(
+            "Fresh wallets (created within 48 hours of use) are disposable digital "
+            "identities. A high proportion of seed capital from fresh wallets indicates "
+            "deliberate creation of throwaway addresses to layer funds and avoid "
+            "tracing back to a real identity. This is a classic anti-forensics "
+            "'layering' technique used in coordinated rugpull operations."
+        ),
+        details={
+            "fraction_fresh_capital": round(frac, 4),
+            "high_threshold": _HIGH,
+            "critical_threshold": _CRITICAL,
+            "fresh_wallet_window_hours": 48,
+        },
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RUG-FP4 — Shared Upstream Funders (Coordinated Cluster)
+# ─────────────────────────────────────────────────────────────────────────────
+
+RULE_ID_FP4 = "RUG-FP4"
+RULE_NAME_FP4 = "Shared Upstream Funders (Coordinated Cluster)"
+
+
+def rule_fp4_shared_funders(fv: FeatureVector) -> RugRuleResult:
+    """
+    Flags wallets that share upstream funders with other known creator
+    wallets in the investigation history database.
+
+    This is the most direct evidence of a coordinated rugpull factory.
+    One entity is running multiple rugpull operations using shared funding
+    infrastructure. The cross-wallet link is extremely hard to explain
+    innocently.
+
+    Becomes more powerful as more wallets are investigated over time.
+    """
+    if not fv.fp_shared_upstream_funders:
+        return RugRuleResult.not_triggered(RULE_ID_FP4, RULE_NAME_FP4)
+
+    return RugRuleResult(
+        rule_id=RULE_ID_FP4,
+        rule_name=RULE_NAME_FP4,
+        triggered=True,
+        severity="CRITICAL",
+        description=(
+            "This creator wallet's upstream funders overlap with funders of "
+            "other previously investigated creator wallets. This is direct "
+            "structural evidence of a coordinated multi-wallet rugpull operation."
+        ),
+        reasoning=(
+            "Legitimate founders do not share funding sources with other creators — "
+            "each startup/project sources its own capital independently. "
+            "When two creator wallets share an upstream funder (even several hops removed), "
+            "it establishes a structural link between the operators that is extremely "
+            "difficult to explain as coincidence. This is the 'fingerprint' of a "
+            "rugpull factory where one operator orchestrates many separate scam deployments."
+        ),
+        details={
+            "shared_upstream_funders": True,
+            "max_funder_jaccard": fv.fp_max_funder_jaccard,
+            "note": (
+                "Full shared funder map is stored in the investigation_history.db. "
+                "This signal becomes more powerful as more wallets are investigated."
+            ),
+        },
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RUG-FP5 — Structuring / Abnormal Seed Size
+# ─────────────────────────────────────────────────────────────────────────────
+
+RULE_ID_FP5 = "RUG-FP5"
+RULE_NAME_FP5 = "Structuring / Abnormal Seed Amount"
+
+
+def rule_fp5_structuring(fv: FeatureVector) -> RugRuleResult:
+    """
+    Flags wallets with structuring-like behaviour: many very small seed
+    transactions (instead of one or two normal-sized CEX withdrawals).
+
+    Also flags wallets where the seed amount is suspiciously close to the
+    bare minimum needed to cover deployment gas costs (minimum-viable-rugpull).
+
+    Math (from spec):
+        Structuring: median_seed < 0.01 ETH AND count > 50
+        Undersized:  seed_in_gas_units < 5 × 3,000,000 gas
+    """
+    med = fv.fp_median_seed_eth
+    count = fv.fp_seed_tx_count
+    gas_units = fv.fp_standardized_seed_gas_units
+
+    _STRUCTURING_MED = 0.01
+    _STRUCTURING_CNT = 50
+    _DEPLOY_GAS      = 3_000_000
+    _UNDERSIZED_FACTOR = 5
+
+    structuring = (med is not None) and (med < _STRUCTURING_MED) and (count > _STRUCTURING_CNT)
+    undersized  = (gas_units is not None) and (gas_units < _UNDERSIZED_FACTOR * _DEPLOY_GAS)
+
+    if not structuring and not undersized:
+        return RugRuleResult.not_triggered(RULE_ID_FP5, RULE_NAME_FP5)
+
+    reasons = []
+    if structuring:
+        reasons.append(
+            f"Structuring: {count} seed txs with median size {med:.6f} ETH "
+            f"(threshold: < {_STRUCTURING_MED} ETH AND > {_STRUCTURING_CNT} txs)."
+        )
+    if undersized:
+        reasons.append(
+            f"Minimum-viable-rugpull: seed of {gas_units:.0f} gas units is less than "
+            f"{_UNDERSIZED_FACTOR}× the typical deployment cost ({_DEPLOY_GAS:,} gas)."
+        )
+
+    return RugRuleResult(
+        rule_id=RULE_ID_FP5,
+        rule_name=RULE_NAME_FP5,
+        triggered=True,
+        severity="MEDIUM",
+        description=" ".join(reasons),
+        reasoning=(
+            "Structuring is the practice of breaking up large fund transfers into many "
+            "small ones to avoid detection thresholds — a classic money-laundering "
+            "technique (inverse of RUG-002 which detects scripted regular intervals). "
+            "A minimum-viable seed (just enough to cover deployment gas) indicates the "
+            "operator treats each rugpull as a disposable minimum-cost operation, "
+            "consistent with serial automated attackers who minimise per-run investment."
+        ),
+        details={
+            "median_seed_eth": round(med, 8) if med is not None else None,
+            "seed_tx_count": count,
+            "standardized_seed_gas_units": round(gas_units, 0) if gas_units is not None else None,
+            "structuring_flag": structuring,
+            "undersized_flag": undersized,
+            "thresholds": {
+                "structuring_median_eth_max": _STRUCTURING_MED,
+                "structuring_count_min": _STRUCTURING_CNT,
+                "deploy_gas_units": _DEPLOY_GAS,
+                "undersized_factor": _UNDERSIZED_FACTOR,
+            },
+        },
+    )

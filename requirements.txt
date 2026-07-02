@@ -25,8 +25,8 @@ aiosqlite==0.20.0
 # ── Agent Framework ──────────────────────────────────────────
 langgraph==0.2.60
 langchain-core==0.3.28
-langchain-google-genai>=2.0.0
-google-generativeai>=0.8.0
+langchain-google-genai>=2.0.8
+google-genai>=0.2.1
 
 # ── Graph Analytics (Visualization Layer) ────────────────────
 networkx==3.4.2

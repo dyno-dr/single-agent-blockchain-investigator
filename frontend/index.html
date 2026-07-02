@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blockchain Investigator</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><circle cx="12" cy="11" r="3"></circle></svg>
+                <h1>Blockchain Investigator</h1>
+            </div>
+            <div class="status-badge" id="api-status">API Offline</div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Search Section -->
+            <section class="search-section card">
+                <h2>Investigate Wallet</h2>
+                <p class="subtitle">Enter an Ethereum EOA address to run forensic analysis and rugpull detection.</p>
+                <form id="investigate-form" class="search-form">
+                    <div class="input-group">
+                        <span class="icon">🔍</span>
+                        <input type="text" id="wallet-input" placeholder="0x..." required pattern="^0x[a-fA-F0-9]{40}$">
+                        <button type="submit" id="submit-btn" class="btn-primary">
+                            <span>Analyze</span>
+                            <div class="spinner hidden" id="submit-spinner"></div>
+                        </button>
+                    </div>
+                </form>
+            </section>
+
+            <!-- Loading / Progress Section -->
+            <section id="progress-section" class="progress-section hidden">
+                <div class="progress-header">
+                    <h3 id="progress-title">Initializing Investigation...</h3>
+                    <span id="progress-percentage">0%</span>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="progress-bar"></div>
+                </div>
+                <div class="progress-logs" id="progress-logs">
+                    <!-- Logs will be inserted here -->
+                </div>
+            </section>
+
+            <!-- Results Section -->
+            <section id="results-section" class="results-section hidden">
+                
+                <!-- Top Row: Score & Summary -->
+                <div class="results-top-row">
+                    <!-- Score Card -->
+                    <div class="score-card card" id="score-card">
+                        <h3>Risk Assessment</h3>
+                        <div class="gauge-container">
+                            <svg viewBox="0 0 100 50" class="gauge">
+                                <path class="gauge-bg" d="M 10,50 A 40,40 0 0,1 90,50" fill="none" />
+                                <path class="gauge-value" id="gauge-value" d="M 10,50 A 40,40 0 0,1 90,50" fill="none" stroke-dasharray="125.6" stroke-dashoffset="125.6"/>
+                            </svg>
+                            <div class="score-text">
+                                <span class="score-number" id="risk-score">0</span>
+                                <span class="score-max">/100</span>
+                            </div>
+                        </div>
+                        <div class="risk-level" id="risk-level">UNKNOWN</div>
+                        <div class="verdict" id="rugpull-verdict"></div>
+                    </div>
+
+                    <!-- Summary Card -->
+                    <div class="summary-card card">
+                        <h3 id="report-title">Report Title</h3>
+                        <div class="wallet-info">
+                            <span class="label">Wallet:</span>
+                            <span class="value mono" id="wallet-address-display">0x...</span>
+                        </div>
+                        <p class="summary-text" id="report-summary">Summary goes here...</p>
+                    </div>
+                </div>
+
+                <!-- Findings Section -->
+                <div class="findings-container">
+                    <h3>Triggered Rules (<span id="finding-count">0</span>)</h3>
+                    <div class="findings-grid" id="findings-grid">
+                        <!-- Finding cards will be inserted here -->
+                    </div>
+                    <div id="no-findings" class="hidden empty-state">
+                        <p>No suspicious patterns detected.</p>
+                    </div>
+                </div>
+
+                <!-- Recommendations Section -->
+                <div class="recommendations-container card">
+                    <h3>Recommendations</h3>
+                    <ul class="recommendations-list" id="recommendations-list">
+                        <!-- Recommendations will be inserted here -->
+                    </ul>
+                </div>
+
+            </section>
+        </main>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>

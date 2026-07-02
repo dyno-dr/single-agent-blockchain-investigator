@@ -74,6 +74,7 @@ class AgentState(TypedDict):
     # ── Forensics ─────────────────────────────────────────────────────────────
     # keyed by wallet_address
     forensics_reports: dict[str, ForensicsReport]
+    rugpull_reports: dict[str, Any]
     risk_score: float
     risk_level: str
 
@@ -147,6 +148,7 @@ def make_initial_state(
         current_depth=0,
         trace_candidates=[],
         forensics_reports={},
+        rugpull_reports={},
         risk_score=0.0,
         risk_level="LOW",
         trace_strategy="FORWARD_ONLY",

@@ -38,6 +38,7 @@ from pydantic import BaseModel, Field
 from backend.forensics.rugpull.extractor import FeatureVector, extract_features
 from backend.forensics.rugpull.rules import RugRuleResult, evaluate_all
 from backend.forensics.rugpull.scorer import RugpullScore, compute_score
+from backend.forensics.rugpull.funding_graph import FundingProvenanceResult
 from backend.settings.base import get_settings
 
 
@@ -87,7 +88,7 @@ class RugpullReport(BaseModel):
     # ── Summary ───────────────────────────────────────────────────────────────
     @property
     def is_suspicious(self) -> bool:
-        return self.verdict not in ("CLEAN", "INSUFFICIENT_DEPLOYMENT_HISTORY")
+        return self.verdict not in ("CLEAN", "INSUFFICIENT_DEPLOYMENT_HISTORY", "INSUFFICIENT_DATA")
 
     @property
     def summary_line(self) -> str:
@@ -129,7 +130,7 @@ class RugpullEngine:
             cfg = get_settings().rugpull
         self._cfg = cfg
 
-    def run(self, address: str, raw_data: dict) -> RugpullReport:
+    def run(self, address: str, raw_data: dict, fp_result: FundingProvenanceResult | None = None) -> RugpullReport:
         """
         Execute the full triage pipeline for one wallet.
 
@@ -137,6 +138,7 @@ class RugpullEngine:
             address:  Wallet address (any case — normalised internally).
             raw_data: Dict with "normal_txs" and "internal_txs" lists,
                       as returned by EtherscanClient.
+            fp_result: Optional FundingProvenanceResult pre-computed by the caller.
 
         Returns:
             RugpullReport — fully populated, frozen, serialisable.
@@ -145,6 +147,20 @@ class RugpullEngine:
 
         # ── Step 1: Feature extraction ────────────────────────────────────────
         fv: FeatureVector = extract_features(addr, raw_data)
+
+        # Merge funding provenance fields if provided
+        if fp_result:
+            fv = fv.model_copy(update={
+                "fp_first_inbound_source_type":   fp_result.first_inbound_source_type,
+                "fp_min_hops_to_known_source":    fp_result.min_hops_to_known_source,
+                "fp_fraction_fresh_capital":      fp_result.fraction_fresh_capital,
+                "fp_funding_entropy_norm":        fp_result.funding_entropy_norm,
+                "fp_median_seed_eth":             fp_result.median_seed_eth,
+                "fp_seed_tx_count":               fp_result.seed_tx_count,
+                "fp_standardized_seed_gas_units": fp_result.standardized_seed_gas_units,
+                "fp_shared_upstream_funders":     fp_result.shared_upstream_funders_flag,
+                "fp_max_funder_jaccard":          fp_result.max_funder_jaccard,
+            })
 
         # ── Step 2: Rule evaluation ───────────────────────────────────────────
         results: list[RugRuleResult] = evaluate_all(fv, self._cfg)

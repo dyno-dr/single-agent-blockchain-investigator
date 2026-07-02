@@ -87,3 +87,8 @@ Thumbs.db
 # ── Data Caches (Do not commit) ──
 raw_wallet_data*.json
 threshold_results*.json
+wallet_age_cache.json
+eoa_addresses.txt
+contract_addresses.txt
+error_addresses.txt
+batch_results*.csv

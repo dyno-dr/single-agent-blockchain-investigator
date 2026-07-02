@@ -116,11 +116,29 @@ def compute_score(results: list[RugRuleResult], cfg: Any) -> RugpullScore:
 
     override: str | None = None
 
+    # ── Override 0: RUG-FP4 (coordinated cluster) → immediate HIGH_CONFIDENCE ─
+    fp4_fired = any(r.rule_id == "RUG-FP4" and r.triggered for r in results)
+    if fp4_fired:
+        verdict = VERDICT_HIGH_CONFIDENCE
+        override = (
+            "RUG-FP4 (shared upstream funders) fired — verdict immediately elevated to "
+            f"{VERDICT_HIGH_CONFIDENCE}. Structural cross-wallet link is direct evidence "
+            "of a coordinated rugpull factory. This overrides all other verdicts."
+        )
+        return RugpullScore(
+            score=max(score, 80),   # Ensure score reflects seriousness
+            verdict=verdict,
+            triggered_rule_ids=triggered_ids,
+            score_breakdown=breakdown,
+            override_applied=override,
+        )
+
     # ── Override 1: Ownership transfer → elevate to at least MODERATE ────────
     new_b_fired = any(r.rule_id == "RUG-NEW-B" and r.triggered for r in results)
     if new_b_fired and cfg.RUG_007_CROSS_MATCH_OVERRIDES_VERDICT:
         if _verdict_rank(verdict) < _verdict_rank(VERDICT_MODERATE):
             verdict = VERDICT_MODERATE
+            score = max(score, cfg.VERDICT_MODERATE_MIN)
             override = (
                 "RUG-NEW-B (ownership transfer) fired — verdict elevated to "
                 f"{VERDICT_MODERATE}. Direct ownership-chain evidence."
