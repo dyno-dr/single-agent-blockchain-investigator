@@ -13,9 +13,6 @@ import argparse
 import json
 import os
 import sys
-import time
-import urllib.parse
-import urllib.request
 from pathlib import Path
 
 # Allow running from project root
@@ -27,6 +24,13 @@ try:
 except ImportError:
     pass
 
+from cli_utils import (
+    VERDICT_COLOURS, RESET,
+    KNOWN_GENUINE,
+    _etherscan_get, fetch_first_tx_ts,
+    find_deploy_ts, load_json, save_json,
+)
+
 from backend.forensics.rugpull.engine import RugpullEngine, RugpullReport
 from backend.forensics.rugpull.funding_graph import extract_funding_provenance, FunderGraph
 
@@ -34,69 +38,19 @@ from backend.forensics.rugpull.funding_graph import extract_funding_provenance, 
 # Config & Paths
 # ─────────────────────────────────────────────────────────────────────────────
 
-ETHERSCAN_BASE = "https://api.etherscan.io/v2/api"
-DATASET_CACHE_FILE = "raw_wallet_data_v2.json"
-AGE_CACHE_FILE = "wallet_age_cache.json"
+DATASET_CACHE_FILE  = "raw_wallet_data_v2.json"
+AGE_CACHE_FILE      = "wallet_age_cache.json"
 KNOWN_ENTITIES_PATH = Path(__file__).parent / "backend" / "blockchain" / "known_entities.json"
-DB_PATH = Path(__file__).parent / "investigation_history.db"
+DB_PATH             = Path(__file__).parent / "investigation_history.db"
 
-KNOWN_GENUINE = [
-    "0xaba7161a7fb69c88e16ed9f455ce62b791ee4d03",
-    "0xd45058bf25bbd8f586124c479d384c8c708ce23a",
-    "0x7a59205733a593a184156f91085dc64ed050408f",
-    "0xcaff2ff35295b803b33f3cf652224532cfc64301",
-    "0xe9da256a28630efdc637bfd4c65f0887be1aeda8",
-    "0xce8d642cdd81d805b9b770da9af3790e7e3dfb05",
-    "0x2aa5ebd85ba9fbdc87a774c29cdad806d7892820",
-    "0xc9b6321dc216d91e626e9baa61b06b0e4d55bdb1",
-    "0x4265de963cdd60629d03fee2cd3285e6d5ff6015",
-    "0xcc9b1fa104d13639c287bd77555e90d4558282fe",
-    "0x0bdfd4ad937ff179985276b7f5be7ae3de0229e6",
-    "0xfd16f84e1f9bb5ec33b52d0133d61f7d20699658",
-    "0xc352b534e8b987e036a93539fd6897f53488e56a",
-    "0x9056d15c49b19df52ffad1e6c11627f035c0c960",
-    "0x1354d8cef0b3459e2677db6321c25639d2b658bd",
-    "0x3ab208d3ce512f2ac0aa821eecf2b816a96799b0",
-    "0x5ef6e3570a32ea63c7bfb69bbb72fe0cd37dfa42",
-    "0x7ea79bad324579fac7a7645c62fe8c60a8b73055"
-]
-
-VERDICT_COLOURS = {
-    "CLEAN":                        "\033[92m",   # green
-    "INSUFFICIENT_DEPLOYMENT_HISTORY": "\033[96m",# cyan
-    "WEAK_PATTERN":                 "\033[93m",   # yellow
-    "MODERATE_PATTERN":             "\033[33m",   # dark yellow
-    "STRONG_PATTERN":               "\033[91m",   # light red
-    "HIGH_CONFIDENCE_RUGPULL":      "\033[31m",   # red
-}
-RESET = "\033[0m"
+# ETHERSCAN_BASE, KNOWN_GENUINE, VERDICT_COLOURS, RESET
+# imported from cli_utils (see top of file).
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Etherscan Fetchers with Caching
+# _etherscan_get, fetch_first_tx_ts, load_json/save_json imported from cli_utils.
+# fetch_wallet_live below is intentionally slimmer (no contract-internal merge)
+# because test_full_dataset.py uses raw_wallet_data_v2.json cache (pre-merged).
 # ─────────────────────────────────────────────────────────────────────────────
-
-def _etherscan_get(params: dict, api_key: str, retries: int = 3) -> list:
-    params["apikey"] = api_key
-    params.setdefault("chainid", 1)
-    url = ETHERSCAN_BASE + "?" + urllib.parse.urlencode(params)
-    time.sleep(0.22)
-    try:
-        with urllib.request.urlopen(url, timeout=20) as resp:
-            data = json.loads(resp.read())
-    except Exception as e:
-        if retries > 0:
-            time.sleep(3)
-            return _etherscan_get(params, api_key, retries - 1)
-        raise e
-
-    result = data.get("result", [])
-    if isinstance(result, str):
-        if "rate limit" in result.lower():
-            print("  [rate limit — waiting 8s]")
-            time.sleep(8)
-            return _etherscan_get(params, api_key)
-        return []
-    return result or []
 
 def fetch_wallet_live(address: str, api_key: str) -> dict:
     addr = address.lower()
@@ -110,28 +64,17 @@ def fetch_wallet_live(address: str, api_key: str) -> dict:
     }, api_key)
     return {"address": addr, "normal_txs": normal, "internal_txs": internal}
 
-def fetch_first_tx_ts_live(address: str, api_key: str) -> int | None:
-    result = _etherscan_get({
-        "module": "account", "action": "txlist",
-        "address": address.lower(), "sort": "asc",
-        "page": 1, "offset": 1,
-    }, api_key)
-    if result:
-        try:
-            return int(result[0].get("timeStamp", 0))
-        except (ValueError, IndexError):
-            return None
-    return None
+
+def fetch_first_tx_ts(address: str, api_key: str) -> int | None:
+    return fetch_first_tx_ts(address, api_key)
+
 
 def load_json_cache(path: str) -> dict:
-    if os.path.exists(path):
-        with open(path) as f:
-            return json.load(f)
-    return {}
+    return load_json(path)
+
 
 def save_json_cache(path: str, data: dict):
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2)
+    save_json(path, data)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Main Routine
@@ -193,14 +136,7 @@ def main():
                 continue
 
             # Find deploy_ts
-            deploy_txs = sorted(
-                [tx for tx in raw.get("normal_txs", [])
-                 if tx.get("from", "").lower() == addr
-                 and tx.get("to") in ("", None)
-                 and tx.get("contractAddress") not in ("", None)],
-                key=lambda t: int(t.get("timeStamp", 0))
-            )
-            deploy_ts = int(deploy_txs[0].get("timeStamp", 0)) if deploy_txs else int(all_txs[0].get("timeStamp", 0))
+            deploy_ts = find_deploy_ts(addr, raw.get("normal_txs", []), all_txs)
 
             # Fetch sender ages
             senders = {
@@ -208,19 +144,33 @@ def main():
                 if tx.get("to", "").lower() == addr and int(tx.get("value", "0")) > 0
                 and tx.get("from", "").lower() != addr
             }
-            
+
+            # Collect post-deploy outbound destinations for CP4 wallet-age lookup
+            destinations = {
+                tx.get("to", "").lower() for tx in all_txs
+                if tx.get("from", "").lower() == addr
+                and tx.get("to", "") not in ("", None)
+                and int(tx.get("value", "0")) > 0
+                and tx.get("contractAddress") in ("", None)
+                and int(tx.get("timeStamp", 0)) >= deploy_ts
+            }
+
             wallet_age_lookup = {}
-            for s in senders:
-                if s in known_entities:
-                    wallet_age_lookup[s] = None
-                elif s in age_cache:
+            all_to_fetch = (senders | destinations) - set(known_entities.keys())
+            for s in all_to_fetch:
+                if s in age_cache:
                     wallet_age_lookup[s] = age_cache[s]
                 elif args.fetch:
                     ts = fetch_first_tx_ts_live(s, api_key)
                     age_cache[s] = ts
                     wallet_age_lookup[s] = ts
                 else:
-                    wallet_age_lookup[s] = None # Treat as unknown age if offline
+                    wallet_age_lookup[s] = None  # Treat as unknown age if offline
+
+            # Mark known entities as non-fresh (age = 0 = very old)
+            for s in senders | destinations:
+                if s in known_entities and s not in wallet_age_lookup:
+                    wallet_age_lookup[s] = None
 
             if args.fetch:
                 save_json_cache(AGE_CACHE_FILE, age_cache)
@@ -235,9 +185,15 @@ def main():
                 funder_graph_db=funder_db,
             )
 
-            # Run Engine
-            report = engine.run(addr, raw, fp_result=fp_result)
+            # Run Engine — now passes wallet_age_lookup + known_entities for CP features
+            report = engine.run(
+                addr, raw,
+                fp_result=fp_result,
+                wallet_age_lookup=wallet_age_lookup,
+                known_entities=known_entities,
+            )
             results.append((addr, label, report))
+
 
     evaluate_dataset(KNOWN_RUGPULL, "RUGPULL")
     evaluate_dataset(KNOWN_GENUINE, "GENUINE")
@@ -264,5 +220,36 @@ def main():
         print(f"\n  Rugpull Accuracy : {tp}/{len(rugpulls)} ({tp/len(rugpulls)*100 if rugpulls else 0:.1f}%) detected (score >= 25)")
         print(f"  Genuine Accuracy : {tn}/{len(genuines)} ({tn/len(genuines)*100 if genuines else 0:.1f}%) clean (score < 25)")
 
+        # -- POST-rule breakdown ----------------------------------------------------
+        post_rule_ids = [
+            "RUG-POST-1", "RUG-POST-2", "RUG-POST-3",
+            "RUG-POST-4", "RUG-POST-5", "RUG-POST-6", "RUG-POST-7",
+        ]
+        print(f"\n  POST-Rule Breakdown (rugpull group):")
+        for rid in post_rule_ids:
+            hit_count = sum(
+                1 for _, lbl, r in rugpulls
+                if any(rule["rule_id"] == rid for rule in r.triggered_rules)
+            )
+            severity_map = {}
+            for _, _, r in rugpulls:
+                for rule in r.triggered_rules:
+                    if rule["rule_id"] == rid:
+                        sev = rule.get("severity", "?")
+                        severity_map[sev] = severity_map.get(sev, 0) + 1
+            sev_str = "  ".join(f"{s}:{n}" for s, n in sorted(severity_map.items()))
+            print(f"    {rid:<14}  {hit_count:>3} wallets  {sev_str}")
+
+        # ── Verdict upgrade analysis ─────────────────────────────────────────
+        upgraded = []
+        for addr, lbl, r in rugpulls:
+            post_fired = [rule["rule_id"] for rule in r.triggered_rules if rule["rule_id"].startswith("RUG-POST")]
+            if post_fired and r.verdict in ("STRONG_PATTERN", "HIGH_CONFIDENCE_RUGPULL"):
+                upgraded.append((addr, r.verdict, r.score, post_fired))
+        print(f"\n  Wallets where POST rules contributed to STRONG/HIGH_CONFIDENCE verdict: {len(upgraded)}")
+        for addr, verdict, score, fired in upgraded[:15]:  # cap at 15 for readability
+            print(f"    {addr}  {verdict}  score={score}  post={fired}")
+
 if __name__ == "__main__":
     main()
+

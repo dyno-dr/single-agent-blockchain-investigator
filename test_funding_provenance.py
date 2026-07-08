@@ -21,9 +21,6 @@ from __future__ import annotations
 import json
 import os
 import sys
-import time
-import urllib.parse
-import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -34,7 +31,12 @@ try:
 except ImportError:
     pass
 
-from backend.forensics.rugpull import RugpullEngine, RugpullReport
+from cli_utils import (
+    BOLD, DIM, RESET, GREEN, RED, CYAN, YELLOW, MAGENTA,
+    _etherscan_get, fetch_first_tx_ts,
+    find_deploy_ts,
+)
+
 from backend.forensics.rugpull.extractor import extract_features, FeatureVector
 from backend.forensics.rugpull.rules import evaluate_all
 from backend.forensics.rugpull.scorer import compute_score
@@ -44,23 +46,13 @@ from backend.forensics.rugpull.funding_graph import (
 )
 from backend.settings.base import get_settings
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Config
-# ─────────────────────────────────────────────────────────────────────────────
-
-ETHERSCAN_BASE   = "https://api.etherscan.io/v2/api"
 KNOWN_ENTITIES_PATH = Path(__file__).parent / "backend" / "blockchain" / "known_entities.json"
-DB_PATH          = Path(__file__).parent / "investigation_history.db"
+DB_PATH             = Path(__file__).parent / "investigation_history.db"
 
-BOLD  = "\033[1m"
-DIM   = "\033[2m"
-RESET = "\033[0m"
-RED   = "\033[91m"
-YELLOW= "\033[93m"
-GREEN = "\033[92m"
-CYAN  = "\033[96m"
-MAGENTA = "\033[35m"
+# BOLD, DIM, RESET, RED, YELLOW, GREEN, CYAN, MAGENTA imported from cli_utils.
+# ETHERSCAN_BASE removed — now in cli_utils.
 
+# Severity colours unique to this script
 SEV_COLOUR = {
     "CRITICAL": "\033[31m",
     "HIGH":     "\033[91m",
@@ -68,36 +60,11 @@ SEV_COLOUR = {
     "LOW":      "\033[96m",
 }
 
+
 # ─────────────────────────────────────────────────────────────────────────────
-# Etherscan helpers
+# _etherscan_get and fetch_first_tx_ts imported from cli_utils.
+# fetch_wallet below is intentionally kept local (unique print format).
 # ─────────────────────────────────────────────────────────────────────────────
-
-def _etherscan_get(params: dict, api_key: str, retries: int = 3) -> list | dict:
-    params["apikey"] = api_key
-    params.setdefault("chainid", 1)
-    url = ETHERSCAN_BASE + "?" + urllib.parse.urlencode(params)
-    time.sleep(0.22)
-    try:
-        with urllib.request.urlopen(url, timeout=20) as resp:
-            data = json.loads(resp.read())
-    except Exception as e:
-        if retries > 0:
-            time.sleep(3)
-            return _etherscan_get(params, api_key, retries - 1)
-        raise
-
-    result = data.get("result", [])
-    if isinstance(result, str):
-        if "rate limit" in result.lower():
-            print("  [rate limit — waiting 8s]")
-            time.sleep(8)
-            return _etherscan_get(params, api_key)
-        if "no transactions found" in result.lower():
-            return []
-        # Non-fatal errors (e.g. address has no txs)
-        return []
-    return result or []
-
 
 def fetch_wallet(address: str, api_key: str) -> dict:
     addr = address.lower()
@@ -106,29 +73,12 @@ def fetch_wallet(address: str, api_key: str) -> dict:
         "module": "account", "action": "txlist",
         "address": addr, "sort": "asc", "page": 1, "offset": 10000,
     }, api_key)
-
     print(f"  -> Fetching internal txs for {addr[:14]}...")
     internal = _etherscan_get({
         "module": "account", "action": "txlistinternal",
         "address": addr, "sort": "asc", "page": 1, "offset": 10000,
     }, api_key)
-
     return {"address": addr, "normal_txs": normal, "internal_txs": internal}
-
-
-def fetch_first_tx_ts(address: str, api_key: str) -> int | None:
-    """Get the timestamp of the very first transaction of an address."""
-    result = _etherscan_get({
-        "module": "account", "action": "txlist",
-        "address": address.lower(), "sort": "asc",
-        "page": 1, "offset": 1,
-    }, api_key)
-    if result:
-        try:
-            return int(result[0].get("timeStamp", 0))
-        except (ValueError, IndexError):
-            return None
-    return None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -176,17 +126,8 @@ def main():
         print("  [WARN] No transactions found for this address.")
 
     # ── Find deploy timestamp ─────────────────────────────────────────────────
-    deploy_txs = sorted(
-        [tx for tx in raw.get("normal_txs", [])
-         if tx.get("from", "").lower() == addr
-         and tx.get("to") in ("", None)
-         and tx.get("contractAddress") not in ("", None)],
-        key=lambda t: int(t.get("timeStamp", 0))
-    )
-    deploy_ts = int(deploy_txs[0].get("timeStamp", 0)) if deploy_txs else (
-        int(all_txs[0].get("timeStamp", 0)) if all_txs else 0
-    )
-    print(f"  Found {len(deploy_txs)} deployment(s). Using deploy_ts = {deploy_ts}")
+    deploy_ts = find_deploy_ts(addr, raw.get("normal_txs", []), all_txs)
+    print(f"  Found {len([tx for tx in raw.get('normal_txs', []) if tx.get('to') in ('', None) and tx.get('contractAddress') not in ('', None)])} deployment(s). Using deploy_ts = {deploy_ts}")
 
     # ── Fetch sender wallet ages (for fresh-wallet detection) ─────────────────
     print(f"\n{BOLD}[2/3] Fetching sender wallet ages (for fresh-wallet detection){RESET}")

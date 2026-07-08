@@ -20,6 +20,13 @@ RULE REGISTER:
   RUG-FP3  High Fraction of Fresh Capital (≥ 50%)          HIGH / CRITICAL
   RUG-FP4  Shared Upstream Funders (coordinated cluster)   CRITICAL
   RUG-FP5  Structuring / Abnormal Seed Size                MEDIUM
+  RUG-POST-1  Immediate Liquidity Drain (CP1: latency)         HIGH / CRITICAL
+  RUG-POST-2  Treasury Sweep (CP2: withdrawal pattern)         MEDIUM / HIGH / CRITICAL
+  RUG-POST-3  Fragmentation / Layering (CP3: outflow CV)       HIGH
+  RUG-POST-4  Destination Diversity / Mule Scatter (CP4)       MEDIUM / HIGH / CRITICAL
+  RUG-POST-5  Exchange / Mixer Concentration (CP5)             HIGH / CRITICAL
+  RUG-POST-6  Swap-before-Cashout / LP Dump (CP6)              HIGH / CRITICAL
+  RUG-POST-7  Retained Proceeds Near Zero (CP7)               HIGH / CRITICAL
 
 FEATURES INTENTIONALLY NOT TRIGGERED:
   F7 within-wallet similarity — hypothesis INVERTED by data (genuine > rugpull).
@@ -506,6 +513,7 @@ def evaluate_all(fv: FeatureVector, cfg: Any) -> list[RugRuleResult]:
         List of RugRuleResult (both triggered and not-triggered).
     """
     return [
+        # Pre-deployment behavioural rules
         rule_001_burner_wallet(fv, cfg.RUG_001_BURNER_THRESHOLD_HOURS),
         rule_002_scripted_funding(fv, cfg.RUG_002_HIGH_CV_MAX, cfg.RUG_002_MEDIUM_CV_MAX),
         rule_003_dry_run(fv, cfg.RUG_003_HIGH_COUNT, cfg.RUG_003_MEDIUM_COUNT),
@@ -519,6 +527,14 @@ def evaluate_all(fv: FeatureVector, cfg: Any) -> list[RugRuleResult]:
         rule_fp3_fresh_capital(fv),
         rule_fp4_shared_funders(fv),
         rule_fp5_structuring(fv),
+        # Post-Exploit Cash-Out rules (POST-1 through POST-7)
+        rule_post1_withdrawal_latency(fv),
+        rule_post2_treasury_sweep(fv),
+        rule_post3_fragmentation(fv),
+        rule_post4_destination_diversity(fv),
+        rule_post5_exchange_concentration(fv),
+        rule_post6_swap_before_cashout(fv),
+        rule_post7_retained_proceeds(fv),
     ]
 
 
@@ -807,3 +823,529 @@ def rule_fp5_structuring(fv: FeatureVector) -> RugRuleResult:
             },
         },
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RUG-POST-1 — Immediate Liquidity Drain (CP1)
+# ─────────────────────────────────────────────────────────────────────────────
+
+RULE_ID_POST1 = "RUG-POST-1"
+RULE_NAME_POST1 = "Immediate Liquidity Drain"
+
+
+def rule_post1_withdrawal_latency(fv: FeatureVector) -> RugRuleResult:
+    """
+    Flags projects where the creator withdrew funds almost immediately after
+    the first real user deposited.
+
+    Thresholds:
+      CRITICAL: < 3,600s  (1 hour)  — automated bot drain
+      HIGH:     < 86,400s (24 hours) — same-day rugpull
+    """
+    latency = fv.cp1_withdrawal_latency_sec
+    if latency is None:
+        return RugRuleResult.not_triggered(RULE_ID_POST1, RULE_NAME_POST1)
+
+    _CRITICAL_SEC = 3_600
+    _HIGH_SEC     = 86_400
+
+    if latency < _CRITICAL_SEC:
+        severity = "CRITICAL"
+        desc = (
+            f"Creator withdrew funds {latency / 60:.1f} minutes after the first "
+            f"victim deposit (threshold: < 1 hour = CRITICAL)."
+        )
+    elif latency < _HIGH_SEC:
+        severity = "HIGH"
+        desc = (
+            f"Creator withdrew funds {latency / 3600:.2f} hours after the first "
+            f"victim deposit (threshold: < 24 hours = HIGH)."
+        )
+    else:
+        return RugRuleResult.not_triggered(RULE_ID_POST1, RULE_NAME_POST1)
+
+    return RugRuleResult(
+        rule_id=RULE_ID_POST1,
+        rule_name=RULE_NAME_POST1,
+        triggered=True,
+        severity=severity,
+        description=desc,
+        reasoning=(
+            "A legitimate project leaves funds in the contract for ongoing development. "
+            "Withdrawing within hours of the first user deposit is exclusively consistent "
+            "with a 'smash and grab' exit scam where the scammer was waiting to drain the "
+            "moment victim funds arrived. Sub-1-hour latency is characteristic of fully "
+            "automated bot-driven rugpulls with no human decision delay."
+        ),
+        details={
+            "withdrawal_latency_seconds": round(latency, 1),
+            "withdrawal_latency_hours":   round(latency / 3600, 4),
+            "critical_threshold_sec":     _CRITICAL_SEC,
+            "high_threshold_sec":         _HIGH_SEC,
+        },
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RUG-POST-2 — Treasury Sweep (CP2)
+# ─────────────────────────────────────────────────────────────────────────────
+
+RULE_ID_POST2 = "RUG-POST-2"
+RULE_NAME_POST2 = "Treasury Sweep"
+
+
+def rule_post2_treasury_sweep(fv: FeatureVector) -> RugRuleResult:
+    """
+    Flags projects where the creator drained a large proportion of all victim
+    funds in very few transactions over a short time span.
+
+    Severity matrix (withdrawal_count, drain_ratio, withdrawal_span_hours):
+      CRITICAL: count≤2 AND drain>90% AND span<24h  — smash and grab
+      HIGH:     count≤2 AND drain>90% AND span≥24h  — slow sweep
+      HIGH:     count≤5 AND drain>80%               — near-total drain
+      MEDIUM:   drain>90% (any count)               — excessive extraction
+    """
+    count = fv.cp2_withdrawal_count
+    drain = fv.cp2_drain_ratio
+    span  = fv.cp2_withdrawal_span_hours
+
+    if count == 0 or drain is None:
+        return RugRuleResult.not_triggered(RULE_ID_POST2, RULE_NAME_POST2)
+
+    if count <= 2 and drain > 0.90:
+        if span is None or span < 24:
+            severity = "CRITICAL"
+            label    = "SMASH_AND_GRAB"
+            desc = (
+                f"Creator drained {drain:.1%} of victim funds in {count} transaction(s) "
+                f"spanning {span:.1f} hours. Textbook smash-and-grab exit."
+                if span is not None else
+                f"Creator drained {drain:.1%} of victim funds in a single transaction."
+            )
+        else:
+            severity = "HIGH"
+            label    = "TREASURY_SWEEP"
+            desc = (
+                f"Creator drained {drain:.1%} of victim funds in {count} transaction(s) "
+                f"spanning {span:.1f} hours."
+            )
+    elif count <= 5 and drain > 0.80:
+        severity = "HIGH"
+        label    = "NEAR_TOTAL_DRAIN"
+        desc = (
+            f"Creator made {count} withdrawals totalling {drain:.1%} of all victim funds."
+        )
+    elif drain > 0.90:
+        severity = "MEDIUM"
+        label    = "EXCESSIVE_EXTRACTION"
+        desc = (
+            f"Creator has extracted {drain:.1%} of all victim funds "
+            f"across {count} withdrawals."
+        )
+    else:
+        return RugRuleResult.not_triggered(RULE_ID_POST2, RULE_NAME_POST2)
+
+    return RugRuleResult(
+        rule_id=RULE_ID_POST2,
+        rule_name=RULE_NAME_POST2,
+        triggered=True,
+        severity=severity,
+        description=desc,
+        reasoning=(
+            "A legitimate project treasury shows gradual, partial withdrawals for "
+            "legitimate business expenses — marketing, development, salaries. A rugpull "
+            "is distinguished by draining the maximum possible amount in the fewest "
+            "possible transactions as fast as possible. High drain ratio with low "
+            "withdrawal count and short time span is the mathematical signature of "
+            "an intentional exit scam."
+        ),
+        details={
+            "withdrawal_count":        count,
+            "drain_ratio":             round(drain, 4) if drain is not None else None,
+            "withdrawal_span_hours":   round(span, 2) if span is not None else None,
+            "pattern_label":           label,
+            "thresholds": {
+                "critical_drain_ratio":  0.90,
+                "critical_max_count":    2,
+                "critical_max_span_hrs": 24,
+                "high_drain_ratio":      0.80,
+                "high_max_count":        5,
+                "medium_drain_ratio":    0.90,
+            },
+        },
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RUG-POST-3 — Fragmentation / Layering (CP3)
+# ─────────────────────────────────────────────────────────────────────────────
+
+RULE_ID_POST3 = "RUG-POST-3"
+RULE_NAME_POST3 = "Withdrawal Fragmentation (Layering)"
+
+
+def rule_post3_fragmentation(fv: FeatureVector) -> RugRuleResult:
+    """
+    Flags wallets where outgoing transaction amounts show very low variance
+    (uniform amounts = scripted layering) or high round-number concentration
+    (all amounts are clean multiples of 0.5 ETH).
+
+    Both conditions indicate an AML evasion technique called structuring or
+    smurfing. Requires at least 4 outgoing transactions to be statistically
+    meaningful.
+
+    Severity: HIGH for either trigger (no CRITICAL tier — this is a supporting
+    signal, not standalone conclusive evidence).
+    """
+    cv      = fv.cp3_outflow_cv
+    rr      = fv.cp3_round_number_ratio
+    count   = fv.cp3_outflow_count
+
+    if count < 4:
+        return RugRuleResult.not_triggered(RULE_ID_POST3, RULE_NAME_POST3)
+
+    _CV_HIGH  = 0.10
+    _RR_HIGH  = 0.80
+
+    uniform_layering = cv is not None and cv < _CV_HIGH
+    round_layering   = rr is not None and rr > _RR_HIGH
+
+    if not uniform_layering and not round_layering:
+        return RugRuleResult.not_triggered(RULE_ID_POST3, RULE_NAME_POST3)
+
+    reasons = []
+    if uniform_layering:
+        reasons.append(
+            f"Outflow CV = {cv:.4f} (< {_CV_HIGH} threshold): "
+            f"amounts are near-identical across {count} transactions."
+        )
+    if round_layering:
+        reasons.append(
+            f"Round-number ratio = {rr:.1%} (> {_RR_HIGH:.0%} threshold): "
+            f"{rr:.1%} of outflows are clean multiples of 0.5 ETH."
+        )
+
+    return RugRuleResult(
+        rule_id=RULE_ID_POST3,
+        rule_name=RULE_NAME_POST3,
+        triggered=True,
+        severity="HIGH",
+        description=" | ".join(reasons),
+        reasoning=(
+            "Structuring (or smurfing) is the practice of deliberately breaking up "
+            "large fund transfers into many smaller, uniform chunks to evade AML "
+            "detection systems at exchanges. A low Coefficient of Variation (CV near 0) "
+            "proves a script is sending the exact same amount repeatedly. A high "
+            "round-number ratio reveals machine-like precision — real invoices and "
+            "vendor payments produce organic, irregular amounts, not clean multiples. "
+            "These patterns directly follow the withdrawal of victim funds and indicate "
+            "deliberate laundering activity."
+        ),
+        details={
+            "outflow_count":       count,
+            "outflow_cv":          round(cv, 4) if cv is not None else None,
+            "round_number_ratio":  round(rr, 4) if rr is not None else None,
+            "uniform_layering":    uniform_layering,
+            "round_layering":      round_layering,
+            "thresholds": {
+                "cv_high_max":   _CV_HIGH,
+                "rr_high_min":   _RR_HIGH,
+                "min_tx_count":  4,
+            },
+        },
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RUG-POST-4 — Destination Diversity / Mule Scattering (CP4)
+# ─────────────────────────────────────────────────────────────────────────────
+
+RULE_ID_POST4 = "RUG-POST-4"
+RULE_NAME_POST4 = "Destination Diversity / Mule Wallet Scattering"
+
+
+def rule_post4_destination_diversity(fv: FeatureVector) -> RugRuleResult:
+    """
+    Flags wallets that scatter funds to many unique external destinations,
+    especially when those destinations are freshly created wallets.
+
+    Known exchanges and DEXs are excluded from the suspicious count. Fresh
+    wallet ratio is computed from wallet_age_lookup built in rugpull_tool.py.
+
+    Severity matrix:
+      CRITICAL: suspicious≥10 AND fresh_ratio>60% — textbook money mule setup
+      HIGH:     suspicious≥7
+      MEDIUM:   suspicious≥4
+    """
+    suspicious = fv.cp4_suspicious_destination_count
+    fresh_ratio = fv.cp4_fresh_wallet_ratio
+
+    _CRITICAL_SUSP  = 10
+    _CRITICAL_FRESH = 0.60
+    _HIGH_SUSP      = 7
+    _MEDIUM_SUSP    = 4
+
+    if suspicious < _MEDIUM_SUSP:
+        return RugRuleResult.not_triggered(RULE_ID_POST4, RULE_NAME_POST4)
+
+    if suspicious >= _CRITICAL_SUSP and fresh_ratio is not None and fresh_ratio > _CRITICAL_FRESH:
+        severity = "CRITICAL"
+        desc = (
+            f"Funds scattered to {suspicious} unknown destinations, "
+            f"{fresh_ratio:.1%} of which are fresh wallets (< 7 days old). "
+            f"Classic money mule scattering pattern."
+        )
+    elif suspicious >= _HIGH_SUSP:
+        severity = "HIGH"
+        desc = (
+            f"Funds sent to {suspicious} unique unknown destinations. "
+            f"(Fresh wallet ratio: {fresh_ratio:.1%})"
+            if fresh_ratio is not None else
+            f"Funds sent to {suspicious} unique unknown destinations."
+        )
+    else:
+        severity = "MEDIUM"
+        desc = (
+            f"Funds dispersed to {suspicious} unique unknown destinations post-deployment."
+        )
+
+    return RugRuleResult(
+        rule_id=RULE_ID_POST4,
+        rule_name=RULE_NAME_POST4,
+        triggered=True,
+        severity=severity,
+        description=desc,
+        reasoning=(
+            "A legitimate project sends funds to a small, predictable set of known "
+            "destinations (a corporate Coinbase account, a Gnosis Safe, a known payroll "
+            "address). Scattering funds to 7+ unknown wallets simultaneously is a "
+            "deliberate obfuscation technique called fan-out or scattering. When a large "
+            "proportion of those destinations are freshly created wallets (< 7 days old), "
+            "they are almost certainly controlled by the same operator — disposable "
+            "money mule wallets created specifically to receive and hold stolen funds "
+            "while the trail goes cold."
+        ),
+        details={
+            "suspicious_destination_count": suspicious,
+            "fresh_wallet_ratio":           round(fresh_ratio, 4) if fresh_ratio is not None else None,
+            "thresholds": {
+                "critical_suspicious_min": _CRITICAL_SUSP,
+                "critical_fresh_ratio":    _CRITICAL_FRESH,
+                "high_suspicious_min":     _HIGH_SUSP,
+                "medium_suspicious_min":   _MEDIUM_SUSP,
+                "fresh_wallet_age_days":   7,
+            },
+            "note": "Known CEX/DEX addresses are excluded from the suspicious count.",
+        },
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RUG-POST-5 — Exchange / Mixer Concentration (CP5)
+# ─────────────────────────────────────────────────────────────────────────────
+
+RULE_ID_POST5 = "RUG-POST-5"
+RULE_NAME_POST5 = "Exchange / Mixer Concentration"
+
+
+def rule_post5_exchange_concentration(fv: FeatureVector) -> RugRuleResult:
+    """
+    Flags wallets that route a dominant proportion of withdrawn funds directly
+    to centralized exchanges (for rapid fiat liquidation) or to privacy mixers
+    (to destroy the transaction trail entirely).
+
+    Any mixer contact is CRITICAL regardless of amount.
+    CEX concentration > 90% is HIGH.
+    """
+    conc  = fv.cp5_concentration_ratio
+    mixer = fv.cp5_mixer_contact
+
+    if not mixer and (conc is None or conc <= 0.90):
+        return RugRuleResult.not_triggered(RULE_ID_POST5, RULE_NAME_POST5)
+
+    if mixer:
+        severity = "CRITICAL"
+        desc = (
+            "Withdrawn funds were routed to a known privacy mixer (e.g. Tornado Cash). "
+            f"CEX/Mixer concentration ratio: {conc:.1%}."
+            if conc is not None else
+            "Withdrawn funds were routed to a known privacy mixer (e.g. Tornado Cash)."
+        )
+    else:
+        severity = "HIGH"
+        desc = (
+            f"{conc:.1%} of all withdrawn funds were routed directly to centralized "
+            f"exchanges. Consistent with rapid liquidation of stolen funds."
+        )
+
+    return RugRuleResult(
+        rule_id=RULE_ID_POST5,
+        rule_name=RULE_NAME_POST5,
+        triggered=True,
+        severity=severity,
+        description=desc,
+        reasoning=(
+            "A scammer's only goal post-rugpull is to convert the stolen ETH into "
+            "untraceable cash as fast as possible. This requires routing through either "
+            "a centralized exchange (to sell for fiat) or a privacy mixer (to destroy "
+            "the transaction graph). A legitimate project may send 30-50% of funds to "
+            "a corporate exchange account for fiat expenses — but never 90%+, and never "
+            "to a mixer. Any mixer contact is an absolute red flag: mixers have zero "
+            "legitimate business use case in a real project treasury."
+        ),
+        details={
+            "mixer_contact":        mixer,
+            "concentration_ratio":  round(conc, 4) if conc is not None else None,
+            "thresholds": {
+                "cex_high_min":     0.90,
+                "mixer_always_critical": True,
+            },
+        },
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RUG-POST-6 — Swap-before-Cashout / LP Dump (CP6)
+# ─────────────────────────────────────────────────────────────────────────────
+
+RULE_ID_POST6 = "RUG-POST-6"
+RULE_NAME_POST6 = "Swap-before-Cashout (LP Dump)"
+
+
+def rule_post6_swap_before_cashout(fv: FeatureVector) -> RugRuleResult:
+    """
+    Flags the specific sequence of: token withdrawal (or removeLiquidity call)
+    followed immediately by a DEX swap — the mechanical fingerprint of a
+    liquidity pool rugpull.
+
+    Thresholds:
+      CRITICAL: swap within 3,600s (1 hour) of withdrawal — emergency liquidation
+      HIGH:     swap within 86,400s (24 hours)             — rapid dump
+    """
+    if not fv.cp6_swap_detected:
+        return RugRuleResult.not_triggered(RULE_ID_POST6, RULE_NAME_POST6)
+
+    latency = fv.cp6_swap_latency_sec
+
+    _CRITICAL_SEC = 3_600
+    _HIGH_SEC     = 86_400
+
+    if latency is not None and latency < _CRITICAL_SEC:
+        severity = "CRITICAL"
+        desc = (
+            f"Token withdrawal followed by DEX swap {latency / 60:.1f} minutes later. "
+            f"Emergency liquidity pool drain detected."
+        )
+    else:
+        severity = "HIGH"
+        desc = (
+            f"Token withdrawal followed by DEX swap "
+            f"{latency / 3600:.1f} hours later. "
+            f"Rapid liquidity dump detected."
+            if latency is not None else
+            "Token withdrawal followed by DEX swap detected."
+        )
+
+    return RugRuleResult(
+        rule_id=RULE_ID_POST6,
+        rule_name=RULE_NAME_POST6,
+        triggered=True,
+        severity=severity,
+        description=desc,
+        reasoning=(
+            "DeFi rugpulls frequently involve liquidity pool drains: the scammer "
+            "withdraws their own custom token (or calls removeLiquidity) and then "
+            "immediately sells it on Uniswap or SushiSwap, which extracts the victims' "
+            "real ETH from the liquidity pool. A legitimate project holder has no reason "
+            "to market-dump their own token — doing so deliberately crashes their own "
+            "token price by 99%. The tight temporal link between the withdrawal event "
+            "(function selectors: removeLiquidity, ERC-20 transfer) and the subsequent "
+            "DEX router interaction is the on-chain fingerprint of this specific attack."
+        ),
+        details={
+            "swap_detected":        True,
+            "swap_latency_seconds": round(latency, 1) if latency is not None else None,
+            "swap_latency_hours":   round(latency / 3600, 4) if latency is not None else None,
+            "thresholds": {
+                "critical_max_sec": _CRITICAL_SEC,
+                "high_max_sec":     _HIGH_SEC,
+            },
+            "detected_selectors": [
+                "baa2abde (Uniswap V2 removeLiquidity)",
+                "02751cec (Uniswap V2 removeLiquidityETH)",
+                "af2979eb (SushiSwap removeLiquidity)",
+                "ded9382a (Uniswap V3 decreaseLiquidity)",
+                "a9059cbb (ERC-20 transfer)",
+            ],
+        },
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RUG-POST-7 — Retained Proceeds Near Zero (CP7)
+# ─────────────────────────────────────────────────────────────────────────────
+
+RULE_ID_POST7 = "RUG-POST-7"
+RULE_NAME_POST7 = "Abandoned Treasury (Retained Proceeds Near Zero)"
+
+
+def rule_post7_retained_proceeds(fv: FeatureVector) -> RugRuleResult:
+    """
+    Flags projects where the creator's ecosystem (project contract + creator
+    wallet) retains almost none of the historical victim inflows.
+
+    This is the mathematical proof of project abandonment: a real startup
+    always retains significant runway. A rugpuller drains everything to dust.
+
+    Thresholds:
+      CRITICAL: retained < 1%
+      HIGH:     retained < 10%
+    """
+    retained = fv.cp7_retained_ratio
+    if retained is None:
+        return RugRuleResult.not_triggered(RULE_ID_POST7, RULE_NAME_POST7)
+
+    _CRITICAL = 0.01
+    _HIGH     = 0.10
+
+    if retained < _CRITICAL:
+        severity = "CRITICAL"
+        desc = (
+            f"Only {retained:.2%} of all historical victim funds remain in the "
+            f"creator's ecosystem. Treasury is effectively abandoned."
+        )
+    elif retained < _HIGH:
+        severity = "HIGH"
+        desc = (
+            f"{retained:.2%} of historical victim funds remain. "
+            f"Treasury is severely depleted with no operational runway."
+        )
+    else:
+        return RugRuleResult.not_triggered(RULE_ID_POST7, RULE_NAME_POST7)
+
+    return RugRuleResult(
+        rule_id=RULE_ID_POST7,
+        rule_name=RULE_NAME_POST7,
+        triggered=True,
+        severity=severity,
+        description=desc,
+        reasoning=(
+            "A legitimate startup is a business with ongoing costs. Even after "
+            "significant vendor payments, real projects retain 40-80% of their "
+            "treasury as operational runway for future development milestones. "
+            "A rugpuller has no future plans and no legitimate expenses — they drain "
+            "everything they possibly can, leaving the contract holding near-zero ETH. "
+            "A retained ratio under 1% is conclusive mathematical proof that the "
+            "project is dead and the creator extracted all victim funds. This is the "
+            "final piece of the post-exploit evidence chain."
+        ),
+        details={
+            "retained_ratio":        round(retained, 6),
+            "retained_percentage":   f"{retained:.4%}",
+            "thresholds": {
+                "critical_max": _CRITICAL,
+                "high_max":     _HIGH,
+            },
+        },
+    )
+

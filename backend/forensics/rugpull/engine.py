@@ -35,7 +35,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from backend.forensics.rugpull.extractor import FeatureVector, extract_features
+from backend.forensics.rugpull.extractor import FeatureVector, extract_features, extract_cashout_features
 from backend.forensics.rugpull.rules import RugRuleResult, evaluate_all
 from backend.forensics.rugpull.scorer import RugpullScore, compute_score
 from backend.forensics.rugpull.funding_graph import FundingProvenanceResult
@@ -130,25 +130,37 @@ class RugpullEngine:
             cfg = get_settings().rugpull
         self._cfg = cfg
 
-    def run(self, address: str, raw_data: dict, fp_result: FundingProvenanceResult | None = None) -> RugpullReport:
+    def run(
+        self,
+        address: str,
+        raw_data: dict,
+        fp_result: FundingProvenanceResult | None = None,
+        wallet_age_lookup: dict | None = None,
+        known_entities: dict | None = None,
+    ) -> RugpullReport:
         """
         Execute the full triage pipeline for one wallet.
 
         Args:
-            address:  Wallet address (any case — normalised internally).
-            raw_data: Dict with "normal_txs" and "internal_txs" lists,
-                      as returned by EtherscanClient.
-            fp_result: Optional FundingProvenanceResult pre-computed by the caller.
+            address:           Wallet address (any case — normalised internally).
+            raw_data:          Dict with "normal_txs" and "internal_txs" lists,
+                               as returned by EtherscanClient.
+            fp_result:         Optional FundingProvenanceResult pre-computed by caller.
+            wallet_age_lookup: Optional {address: first_tx_timestamp | None} covering
+                               both upstream senders and downstream destinations.
+                               Built by rugpull_tool.py before calling run().
+            known_entities:    Optional {address_lower: {type: str, ...}} from
+                               known_entities.json. Built by rugpull_tool.py.
 
         Returns:
             RugpullReport — fully populated, frozen, serialisable.
         """
         addr = address.lower().strip()
 
-        # ── Step 1: Feature extraction ────────────────────────────────────────
+        # ── Step 1: Base feature extraction ──────────────────────────────────
         fv: FeatureVector = extract_features(addr, raw_data)
 
-        # Merge funding provenance fields if provided
+        # ── Step 2: Merge funding provenance fields ───────────────────────────
         if fp_result:
             fv = fv.model_copy(update={
                 "fp_first_inbound_source_type":   fp_result.first_inbound_source_type,
@@ -162,17 +174,30 @@ class RugpullEngine:
                 "fp_max_funder_jaccard":          fp_result.max_funder_jaccard,
             })
 
-        # ── Step 2: Rule evaluation ───────────────────────────────────────────
+        # ── Step 3: Merge post-exploit cash-out features ──────────────────────
+        if wallet_age_lookup is not None or known_entities is not None:
+            cp_fields = extract_cashout_features(
+                normal_txs=raw_data.get("normal_txs", []),
+                internal_txs=raw_data.get("internal_txs", []),
+                creator_address=addr,
+                wallet_age_lookup=wallet_age_lookup or {},
+                known_entities=known_entities or {},
+            )
+            if cp_fields:
+                fv = fv.model_copy(update=cp_fields)
+
+        # ── Step 4: Rule evaluation ───────────────────────────────────────────
         results: list[RugRuleResult] = evaluate_all(fv, self._cfg)
 
-        # ── Step 3: Scoring ───────────────────────────────────────────────────
+        # ── Step 5: Scoring ───────────────────────────────────────────────────
         scored: RugpullScore = compute_score(results, self._cfg)
 
-        # ── Step 4: Narrative context (non-trigger features) ──────────────────
+        # ── Step 6: Narrative context (non-trigger features) ──────────────────
         narrative = _build_narrative(fv)
 
-        # ── Step 5: Assemble report ───────────────────────────────────────────
+        # ── Step 7: Assemble report ───────────────────────────────────────────
         triggered = [r for r in results if r.triggered]
+
 
         return RugpullReport(
             wallet_address=addr,

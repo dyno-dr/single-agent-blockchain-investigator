@@ -147,7 +147,22 @@ class RugpullTool(BaseTool):
             and tx.get("from")
         }
 
-        # 4. Fetch wallet ages concurrently
+        # NEW: identify all unique post-deploy outbound destinations.
+        # These are needed by CP4 (Destination Diversity) to check wallet ages
+        # for money mule detection. They are fetched in the same parallel batch
+        # as senders to avoid any additional round-trips.
+        destinations = {
+            tx.get("to", "").lower()
+            for tx in all_txs
+            if tx.get("from", "").lower() == addr_lower
+            and tx.get("to", "") not in ("", None)
+            and int(tx.get("value", "0")) > 0
+            and tx.get("contractAddress") in ("", None)  # not itself a deploy tx
+            and int(tx.get("timeStamp", 0)) >= deploy_timestamp  # post-deploy only
+        }
+
+        # 4. Fetch wallet ages concurrently for BOTH senders AND destinations.
+        # We merge into one set and deduplicate to avoid redundant API calls.
         wallet_age_lookup: dict[str, int | None] = {}
         
         async def fetch_age(sender: str):
@@ -159,8 +174,9 @@ class RugpullTool(BaseTool):
                 pass
             return sender, None
 
-        if senders:
-            results = await asyncio.gather(*(fetch_age(s) for s in senders))
+        all_to_fetch = (senders | destinations) - set(wallet_age_lookup.keys())
+        if all_to_fetch:
+            results = await asyncio.gather(*(fetch_age(s) for s in all_to_fetch))
             for s, age in results:
                 wallet_age_lookup[s] = age
 
@@ -189,7 +205,13 @@ class RugpullTool(BaseTool):
 
         # 7. Run Engine
         engine = RugpullEngine()
-        report = engine.run(wallet, raw_data, fp_result=fp_result)
+        report = engine.run(
+            wallet,
+            raw_data,
+            fp_result=fp_result,
+            wallet_age_lookup=wallet_age_lookup,
+            known_entities=known_entities,
+        )
         
         logger.info("rugpull_tool_complete", wallet=wallet, verdict=report.verdict, score=report.score)
         return report

@@ -29,9 +29,11 @@ import argparse
 import json
 import os
 import sys
-import time
-import urllib.parse
-import urllib.request
+from pathlib import Path
+
+# Fix Windows console encoding for characters like ≥
+if sys.stdout.encoding.lower() != 'utf-8':
+    sys.stdout.reconfigure(encoding='utf-8')
 
 # ─── allow running from project root ──────────────────────────────────────────
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -42,84 +44,41 @@ try:
 except ImportError:
     pass
 
+from cli_utils import (
+    VERDICT_COLOURS, RESET, BOLD, DIM,
+    KNOWN_RUGPULL, KNOWN_GENUINE,
+    _etherscan_get, fetch_first_tx_ts, fetch_wallet_full,
+    find_deploy_ts, load_json, save_json,
+)
+
 from backend.forensics.rugpull import RugpullEngine, RugpullReport
+from backend.forensics.rugpull.funding_graph import extract_funding_provenance, FunderGraph
+
+KNOWN_ENTITIES_PATH = Path(__file__).parent / "backend" / "blockchain" / "known_entities.json"
+DB_PATH             = Path(__file__).parent / "investigation_history.db"
+AGE_CACHE_FILE      = "wallet_age_cache.json"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Known address sets for --known mode
+# Known address sets — imported from cli_utils (canonical 18-address source)
 # ─────────────────────────────────────────────────────────────────────────────
 
-KNOWN_RUGPULL = [
-    "0x00859b3baac525143bb8a3ee3e19ddf9daf2408c",
-    "0x1d524a067f1828665273a0f85bd58cbb1cd18c3f",
-    "0x212da8c9dad7e9b6a71422665c58bf9a7ecae6d0",
-    "0x2b3ab8e7bb14988616359b78709538b10900ab7d",
-    "0x58efa9aae017589b9fadbea3ed6f09730635efaf",
-]
+if os.path.exists("rugpull_live_cache.json"):
+    DEFAULT_CACHE_FILE = "rugpull_live_cache.json"
+else:
+    DEFAULT_CACHE_FILE = "raw_wallet_data_v2.json"
 
-KNOWN_GENUINE = [
-    "0xaba7161a7fb69c88e16ed9f455ce62b791ee4d03",
-    "0xd45058bf25bbd8f586124c479d384c8c708ce23a",
-    "0xce8d642cdd81d805b9b770da9af3790e7e3dfb05",
-    "0xb5191de5e9ed5ce94176b7917430a8512e5ad517",
-]
-
-DEFAULT_CACHE_FILE = "raw_wallet_data_v2.json"
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Etherscan minimal fetcher (no external deps, same as threshold script)
-# ─────────────────────────────────────────────────────────────────────────────
-
-ETHERSCAN_BASE = "https://api.etherscan.io/v2/api"
-
-
-def _etherscan_get(params: dict, api_key: str) -> list:
-    params["apikey"] = api_key
-    params.setdefault("chainid", 1)
-    url = ETHERSCAN_BASE + "?" + urllib.parse.urlencode(params)
-    time.sleep(0.25)  # stay under 5 req/s free tier
-    with urllib.request.urlopen(url, timeout=20) as resp:
-        data = json.loads(resp.read())
-    result = data.get("result", [])
-    if isinstance(result, str):
-        if "rate limit" in result.lower():
-            print("  [rate limit — waiting 6s]")
-            time.sleep(6)
-            return _etherscan_get(params, api_key)
-        raise RuntimeError(f"Etherscan error: {result}")
-    return result or []
-
-
-def fetch_live(address: str, api_key: str) -> dict:
-    """Fetch normal + internal txs from Etherscan live."""
-    addr = address.lower()
-    print(f"  Fetching normal txs for {addr[:12]}...")
-    normal = _etherscan_get({
-        "module": "account", "action": "txlist",
-        "address": addr, "startblock": 0, "endblock": 99999999,
-        "sort": "asc", "page": 1, "offset": 10000,
-    }, api_key)
-
-    print(f"  Fetching internal txs for {addr[:12]}...")
-    internal = _etherscan_get({
-        "module": "account", "action": "txlistinternal",
-        "address": addr, "startblock": 0, "endblock": 99999999,
-        "sort": "asc", "page": 1, "offset": 10000,
-    }, api_key)
-
-    return {"address": addr, "normal_txs": normal, "internal_txs": internal}
+# _etherscan_get, fetch_first_tx_ts, and fetch_wallet_full
+# are imported from cli_utils (see top of file).
 
 
 def load_raw(address: str, cache_file: str, api_key: str, use_cache: bool) -> dict | None:
     """Return raw data from cache or live fetch."""
     addr = address.lower()
+    cache = load_json(cache_file)
 
-    if os.path.exists(cache_file):
-        with open(cache_file) as f:
-            cache = json.load(f)
-        if addr in cache:
-            if use_cache:
-                print(f"  [cache hit] Loaded {addr[:12]}... from {cache_file}")
-            return cache[addr]
+    if addr in cache and use_cache:
+        print(f"  [cache hit] Loaded {addr[:12]}... from {cache_file}")
+        return cache[addr]
 
     if use_cache:
         print(f"  [MISS] {addr} not in cache — run without --cache to fetch live")
@@ -129,18 +88,9 @@ def load_raw(address: str, cache_file: str, api_key: str, use_cache: bool) -> di
         print("ERROR: No Etherscan API key. Set ETHERSCAN_API_KEY in .env or use --cache")
         return None
 
-    raw = fetch_live(addr, api_key)
-
-    # Save to cache for future runs
-    cache = {}
-    if os.path.exists(cache_file):
-        with open(cache_file) as f:
-            cache = json.load(f)
-    cache[addr] = raw
-    with open(cache_file, "w") as f:
-        json.dump(cache, f, indent=2)
+    raw = fetch_wallet_full(addr, api_key, cache)
+    save_json(cache_file, cache)
     print(f"  [saved] Raw data cached to {cache_file}")
-
     return raw
 
 
@@ -148,17 +98,7 @@ def load_raw(address: str, cache_file: str, api_key: str, use_cache: bool) -> di
 # Report printer
 # ─────────────────────────────────────────────────────────────────────────────
 
-VERDICT_COLOURS = {
-    "CLEAN":                        "\033[92m",   # green
-    "INSUFFICIENT_DEPLOYMENT_HISTORY": "\033[96m",# cyan
-    "WEAK_PATTERN":                 "\033[93m",   # yellow
-    "MODERATE_PATTERN":             "\033[33m",   # dark yellow
-    "STRONG_PATTERN":               "\033[91m",   # light red
-    "HIGH_CONFIDENCE_RUGPULL":      "\033[31m",   # red
-}
-RESET = "\033[0m"
-BOLD  = "\033[1m"
-DIM   = "\033[2m"
+# VERDICT_COLOURS, RESET, BOLD, DIM imported from cli_utils (see top of file).
 
 
 def _colour(verdict: str, text: str) -> str:
@@ -193,15 +133,45 @@ def print_report(report: RugpullReport, label: str = "") -> None:
             return f"{DIM}None (undefined){RESET}"
         return f"{v:.4f}{unit}"
 
-    print(f"  F1  Warmup hours      : {_fmt(fv.f1_warmup_hours, 'h')}")
-    print(f"  F2  Funding CV        : {_fmt(fv.f2_funding_cv)}")
-    print(f"  F3  Dry-run count     : {fv.f3_dry_run_count}")
-    print(f"  F4  Deployment count  : {fv.f4_deployment_count}")
-    print(f"  F4b Burstiness        : {_fmt(fv.f4_burstiness)} {DIM}(narrative only){RESET}")
-    print(f"  F5  Nonce entropy     : {_fmt(fv.f5_nonce_entropy, ' bits')} {DIM}(narrative only){RESET}")
-    print(f"  F7  Within-wallet sim : {_fmt(fv.f7_within_wallet_sim)} {DIM}(narrative only){RESET}")
-    print(f"  NEW-A Single deploy   : {fv.new_a_single_deploy}")
-    print(f"  Funding sources       : {len(fv.all_funding_sources)} unique addresses")
+    print(f"  F1  Warmup hours          : {_fmt(fv.f1_warmup_hours, 'h')}")
+    print(f"  F2  Funding CV             : {_fmt(fv.f2_funding_cv)}")
+    print(f"  F3  Dry-run count          : {fv.f3_dry_run_count}")
+    print(f"  F4  Deployment count       : {fv.f4_deployment_count}")
+    print(f"  F4b Burstiness             : {_fmt(fv.f4_burstiness)} {DIM}(narrative){RESET}")
+    print(f"  F5  Nonce entropy          : {_fmt(fv.f5_nonce_entropy, ' bits')} {DIM}(narrative){RESET}")
+    print(f"  F7  Within-wallet sim      : {_fmt(fv.f7_within_wallet_sim)} {DIM}(narrative){RESET}")
+    print(f"  NEW-A Single deploy        : {fv.new_a_single_deploy}")
+    print(f"  Funding sources            : {len(fv.all_funding_sources)} unique addresses")
+
+    # Funding Provenance
+    print()
+    print(f"  {DIM}--- Funding Provenance (FP) ---{RESET}")
+    print(f"  FP1 First inbound source   : {fv.fp_first_inbound_source_type}")
+    print(f"  FP2 Min hops to known src  : {fv.fp_min_hops_to_known_source}")
+    print(f"  FP3 Fresh capital fraction : {_fmt(fv.fp_fraction_fresh_capital)}")
+    print(f"  FP4 Shared funders flag    : {fv.fp_shared_upstream_funders}")
+    print(f"  FP4 Max funder Jaccard     : {_fmt(fv.fp_max_funder_jaccard)}")
+    print(f"  FP5 Funding entropy (norm) : {_fmt(fv.fp_funding_entropy_norm)}")
+    print(f"  FP5 Median seed ETH        : {_fmt(fv.fp_median_seed_eth, ' ETH')}")
+    print(f"  FP5 Seed tx count          : {fv.fp_seed_tx_count}")
+
+    # Post-Exploit Cash-Out
+    print()
+    print(f"  {DIM}--- Post-Exploit Cash-Out (CP) ---{RESET}")
+    print(f"  CP1 Withdrawal latency     : {_fmt(fv.cp1_withdrawal_latency_sec, 's')}")
+    print(f"  CP2 Withdrawal count       : {fv.cp2_withdrawal_count}")
+    print(f"  CP2 Drain ratio            : {_fmt(fv.cp2_drain_ratio)}")
+    print(f"  CP2 Withdrawal span        : {_fmt(fv.cp2_withdrawal_span_hours, 'h')}")
+    print(f"  CP3 Outflow CV             : {_fmt(fv.cp3_outflow_cv)}")
+    print(f"  CP3 Round number ratio     : {_fmt(fv.cp3_round_number_ratio)}")
+    print(f"  CP3 Outflow count          : {fv.cp3_outflow_count}")
+    print(f"  CP4 Suspicious dests       : {fv.cp4_suspicious_destination_count}")
+    print(f"  CP4 Fresh wallet ratio     : {_fmt(fv.cp4_fresh_wallet_ratio)}")
+    print(f"  CP5 CEX/Mixer conc. ratio  : {_fmt(fv.cp5_concentration_ratio)}")
+    print(f"  CP5 Mixer contact          : {fv.cp5_mixer_contact}")
+    print(f"  CP6 Swap detected          : {fv.cp6_swap_detected}")
+    print(f"  CP6 Swap latency           : {_fmt(fv.cp6_swap_latency_sec, 's')}")
+    print(f"  CP7 Retained ratio         : {_fmt(fv.cp7_retained_ratio)}")
 
     print(thin)
     print("  TRIGGERED RULES")
@@ -217,15 +187,16 @@ def print_report(report: RugpullReport, label: str = "") -> None:
                 "MEDIUM":   "\033[93m", "LOW":  "\033[96m",
             }.get(sev, "")
             print(f"  {sev_col}{BOLD}[{sev}]{RESET}  {r['rule_id']} — {r['rule_name']}")
-            print(f"         {r['description']}")
+            print(f"         Observation : {r['description']}")
+            print(f"         Reasoning   : {r['reasoning'][:160]}")
             pts = report.score_breakdown.get(r['rule_id'], 0)
-            print(f"         {DIM}Points: +{pts}  |  Reasoning: {r['reasoning'][:100]}...{RESET}")
+            print(f"         {DIM}Score points: +{pts}{RESET}")
             print()
 
     # Multi-hop targets
     if report.multihop_addresses:
         print(thin)
-        print(f"  {BOLD}[!] MULTI-HOP TARGETS - Queue for secondary investigation:{RESET}")
+        print(f"  {BOLD}[!] MULTI-HOP TARGETS — Queue for secondary investigation:{RESET}")
         for addr in set(report.multihop_addresses):
             print(f"     -> {addr}")
 
@@ -343,8 +314,83 @@ def main():
     if raw is None:
         sys.exit(1)
 
-    print("Running rugpull triage engine...")
-    report = engine.run(addr, raw)
+    # Load known entities
+    known_entities: dict = {}
+    if KNOWN_ENTITIES_PATH.exists():
+        with open(KNOWN_ENTITIES_PATH) as f:
+            raw_ents = json.load(f)
+        for cat, entries in raw_ents.items():
+            if not cat.startswith("_") and isinstance(entries, dict):
+                for k, v in entries.items():
+                    known_entities[k.lower()] = v
+
+    normal_txs   = raw.get("normal_txs",   [])
+    internal_txs = raw.get("internal_txs", [])
+    all_txs      = normal_txs + internal_txs
+
+    # Find deploy_ts
+    deploy_ts = find_deploy_ts(addr, normal_txs, all_txs)
+
+    # Build wallet_age_lookup
+    age_cache_data: dict = {}
+    if os.path.exists(AGE_CACHE_FILE):
+        with open(AGE_CACHE_FILE) as f:
+            age_cache_data = json.load(f)
+
+    senders = {
+        tx.get("from", "").lower() for tx in all_txs
+        if tx.get("to", "").lower() == addr
+        and int(tx.get("value", "0")) > 0
+        and tx.get("from", "").lower() != addr
+    }
+    destinations = {
+        tx.get("to", "").lower() for tx in all_txs
+        if tx.get("from", "").lower() == addr
+        and tx.get("to", "") not in ("", None)
+        and int(tx.get("value", "0")) > 0
+        and tx.get("contractAddress") in ("", None)
+        and int(tx.get("timeStamp", 0)) >= deploy_ts
+    }
+
+    wallet_age_lookup: dict = {}
+    new_ages = 0
+    for s in (senders | destinations) - set(known_entities.keys()):
+        if s in age_cache_data:
+            wallet_age_lookup[s] = age_cache_data[s]
+        elif api_key and not args.cache:
+            ts = fetch_first_tx_ts(s, api_key)
+            age_cache_data[s] = ts
+            wallet_age_lookup[s] = ts
+            new_ages += 1
+        else:
+            wallet_age_lookup[s] = None
+    for s in senders | destinations:
+        if s in known_entities:
+            wallet_age_lookup[s] = None
+
+    if new_ages:
+        with open(AGE_CACHE_FILE, "w") as f:
+            json.dump(age_cache_data, f, indent=2)
+        print(f"  Fetched wallet ages for {new_ages} new addresses")
+
+    # Funding provenance
+    funder_db = FunderGraph(DB_PATH)
+    fp_result = extract_funding_provenance(
+        wallet_address=addr,
+        txs=all_txs,
+        deploy_timestamp=deploy_ts,
+        known_entities=known_entities,
+        wallet_age_lookup=wallet_age_lookup,
+        funder_graph_db=funder_db,
+    )
+
+    print("Running full rugpull triage pipeline (all rule layers)...")
+    report = engine.run(
+        addr, raw,
+        fp_result=fp_result,
+        wallet_age_lookup=wallet_age_lookup,
+        known_entities=known_entities,
+    )
     print_report(report)
 
     # Hint for multihop

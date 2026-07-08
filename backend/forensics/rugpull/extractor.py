@@ -152,6 +152,35 @@ class FeatureVector(BaseModel):
     # FP4 — Max Jaccard similarity of funder sets vs any known scam creator
     fp_max_funder_jaccard: Optional[float] = None
 
+    # ── Post-Exploit Cash-Out Features (CP1-CP7) ─────────────────────────────
+    # CP1 — Latency: seconds from first victim inflow to first creator outflow
+    cp1_withdrawal_latency_sec: Optional[float] = None
+
+    # CP2 — Staged withdrawals: count, drain ratio, time span of extraction
+    cp2_withdrawal_count: int = 0
+    cp2_drain_ratio: Optional[float] = None
+    cp2_withdrawal_span_hours: Optional[float] = None
+
+    # CP3 — Fragmentation: CV of outflow amounts + round-number ratio
+    cp3_outflow_cv: Optional[float] = None
+    cp3_round_number_ratio: Optional[float] = None
+    cp3_outflow_count: int = 0
+
+    # CP4 — Destination diversity: suspicious unique destinations + fresh ratio
+    cp4_suspicious_destination_count: int = 0
+    cp4_fresh_wallet_ratio: Optional[float] = None
+
+    # CP5 — Exchange / Mixer concentration ratio
+    cp5_concentration_ratio: Optional[float] = None
+    cp5_mixer_contact: bool = False
+
+    # CP6 — Swap-before-cashout: detected flag + seconds between withdraw and DEX
+    cp6_swap_detected: bool = False
+    cp6_swap_latency_sec: Optional[float] = None
+
+    # CP7 — Retained proceeds: fraction of victim inflow still in creator ecosystem
+    cp7_retained_ratio: Optional[float] = None
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Internal helpers
@@ -433,3 +462,291 @@ def extract_features(address: str, raw: dict) -> FeatureVector:
         all_funding_sources=all_funding_sources,
         deployment_setup_sequences=setup_sequences,
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Post-Exploit Cash-Out Feature Extraction
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Known function selectors for token-related operations (keccak256 ABI-derived)
+_REMOVE_LIQUIDITY_SELECTORS: set[str] = {
+    "baa2abde",  # Uniswap V2 removeLiquidity()
+    "02751cec",  # Uniswap V2 removeLiquidityETH()
+    "af2979eb",  # SushiSwap removeLiquidity()
+    "ded9382a",  # Uniswap V3 decreaseLiquidity()
+}
+_TRANSFER_TOKEN_SELECTOR = "a9059cbb"  # ERC-20 transfer(address,uint256)
+
+_ETH = 10 ** 18  # 1 ETH in Wei
+
+
+def extract_cashout_features(
+    normal_txs: list[dict],
+    internal_txs: list[dict],
+    creator_address: str,
+    wallet_age_lookup: dict[str, int | None],
+    known_entities: dict[str, dict],
+) -> dict:
+    """
+    Compute the 7 post-exploit cash-out feature fields (CP1-CP7).
+
+    Contract address is derived INTERNALLY from deploy_txs — callers do not
+    need to supply it. Returns a dict suitable for:
+        fv = fv.model_copy(update=extract_cashout_features(...))
+
+    Args:
+        normal_txs:        Etherscan normal transaction list.
+        internal_txs:      Etherscan internal transaction list.
+        creator_address:   The creator wallet address (any case).
+        wallet_age_lookup: {address: first_tx_timestamp | None} — covers
+                           both upstream senders and downstream destinations.
+        known_entities:    {address_lower: {type: str, ...}} from known_entities.json.
+    """
+    addr = creator_address.lower()
+
+    # ── 0. Resolve the deployed contract address from the tx list ─────────────
+    # Etherscan sets contractAddress on any tx where to=="" (a deployment).
+    # We take the FIRST deployment if multiple exist.
+    deploy_txs = sorted(
+        [tx for tx in normal_txs
+         if tx.get("to", "") == "" and tx.get("contractAddress")],
+        key=lambda t: int(t.get("timeStamp", 0))
+    )
+    if not deploy_txs:
+        # Not a creator wallet — all CP fields stay at their defaults (None/0/False)
+        return {}
+    contract_address = deploy_txs[0].get("contractAddress", "").lower()
+    deploy_ts = int(deploy_txs[0].get("timeStamp", 0))
+
+    # ── 1. Sort all transactions chronologically ───────────────────────────────
+    all_txs_sorted = sorted(
+        normal_txs + internal_txs,
+        key=lambda t: int(t.get("timeStamp", 0))
+    )
+
+    # ── 2. Separate contract interaction streams ───────────────────────────────
+    # Victim inflows: ETH sent to the project contract by anyone except creator
+    # Creator outflows: ETH leaving the contract back to creator (withdrawals)
+    # Creator wallet outflows: ETH sent from creator to external addresses post-deploy
+    victim_inflows: list[dict] = []
+    contract_to_creator: list[dict] = []   # raw withdrawal events
+    creator_post_deploy_out: list[dict] = []  # creator's own outgoing txs post-deploy
+
+    for tx in all_txs_sorted:
+        from_a = tx.get("from", "").lower()
+        to_a   = tx.get("to", "").lower()
+        val    = int(tx.get("value", 0))
+        ts     = int(tx.get("timeStamp", 0))
+
+        # Victim inflow into contract
+        if to_a == contract_address and from_a != addr and val > 0:
+            victim_inflows.append(tx)
+
+        # Withdrawal from contract to creator
+        if from_a == contract_address and to_a == addr and val > 0:
+            contract_to_creator.append(tx)
+
+        # Creator outgoing (post-deploy, not deployments, not self)
+        if (from_a == addr
+                and to_a not in ("", None, contract_address)
+                and val > 0
+                and ts >= deploy_ts
+                and tx.get("contractAddress") in ("", None)):
+            creator_post_deploy_out.append(tx)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # CP1 — Withdrawal Latency
+    # ─────────────────────────────────────────────────────────────────────────
+    cp1_latency: Optional[float] = None
+    if victim_inflows and contract_to_creator:
+        first_inflow_ts  = int(victim_inflows[0].get("timeStamp", 0))
+        first_outflow_ts = int(contract_to_creator[0].get("timeStamp", 0))
+        delta = first_outflow_ts - first_inflow_ts
+        if delta >= 0:
+            cp1_latency = float(delta)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # CP2 — Staged Withdrawals
+    # ─────────────────────────────────────────────────────────────────────────
+    cp2_count     = len(contract_to_creator)
+    cp2_drain     = None
+    cp2_span_hrs  = None
+
+    total_victim_wei = sum(int(t.get("value", 0)) for t in victim_inflows)
+    if total_victim_wei > 0 and contract_to_creator:
+        total_withdrawn = sum(int(t.get("value", 0)) for t in contract_to_creator)
+        cp2_drain = total_withdrawn / total_victim_wei
+
+        if len(contract_to_creator) >= 2:
+            first_w = int(contract_to_creator[0].get("timeStamp", 0))
+            last_w  = int(contract_to_creator[-1].get("timeStamp", 0))
+            cp2_span_hrs = (last_w - first_w) / 3600.0
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # CP3 — Fragmentation / Layering
+    # ─────────────────────────────────────────────────────────────────────────
+    cp3_cv       = None
+    cp3_rr       = None
+    cp3_count    = 0
+
+    # Analyse amounts going OUT of creator's wallet post-deploy
+    outflow_amounts_wei = [
+        int(t.get("value", 0))
+        for t in creator_post_deploy_out
+        if int(t.get("value", 0)) > 0
+    ]
+    cp3_count = len(outflow_amounts_wei)
+
+    if cp3_count >= 4:
+        amounts_eth = [v / _ETH for v in outflow_amounts_wei]
+        mean_eth = statistics.mean(amounts_eth)
+        if mean_eth > 0:
+            try:
+                std_eth = statistics.stdev(amounts_eth)
+            except statistics.StatisticsError:
+                std_eth = 0.0
+            cp3_cv = std_eth / mean_eth
+
+        # Round number check: multiples of 0.5 ETH in ETH space
+        round_count = sum(1 for v in amounts_eth if round(v % 0.5, 6) == 0)
+        cp3_rr = round_count / len(amounts_eth)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # CP4 — Destination Diversity
+    # ─────────────────────────────────────────────────────────────────────────
+    cp4_suspicious = 0
+    cp4_fresh_ratio = None
+
+    # Unique external destinations from creator post-deploy (exclude own contract)
+    unique_dests: dict[str, int] = {}
+    for tx in creator_post_deploy_out:
+        dest = tx.get("to", "").lower()
+        if dest and dest != contract_address:
+            unique_dests[dest] = unique_dests.get(dest, 0) + int(tx.get("value", 0))
+
+    if unique_dests:
+        total_dests = len(unique_dests)
+        known_count = sum(1 for d in unique_dests if d in known_entities)
+        cp4_suspicious = max(0, total_dests - known_count)
+
+        # Fresh wallet detection using wallet_age_lookup (pre-populated by rugpull_tool.py)
+        fresh_count = 0
+        for dest_addr in unique_dests:
+            if dest_addr in known_entities:
+                continue
+            first_ts = wallet_age_lookup.get(dest_addr)
+            if first_ts is not None:
+                age_days = (deploy_ts - first_ts) / 86400.0
+                if age_days < 7:
+                    fresh_count += 1
+        cp4_fresh_ratio = fresh_count / total_dests if total_dests > 0 else 0.0
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # CP5 — Exchange / Mixer Concentration
+    # ─────────────────────────────────────────────────────────────────────────
+    cp5_conc    = None
+    cp5_mixer   = False
+
+    total_out_wei      = sum(int(t.get("value", 0)) for t in creator_post_deploy_out)
+    cex_mixer_out_wei  = 0
+
+    for tx in creator_post_deploy_out:
+        dest = tx.get("to", "").lower()
+        val  = int(tx.get("value", 0))
+        if val <= 0:
+            continue
+        entity = known_entities.get(dest)
+        if entity:
+            etype = entity.get("type", "")
+            if etype in ("CEX", "MIXER"):
+                cex_mixer_out_wei += val
+            if etype == "MIXER":
+                cp5_mixer = True
+
+    if total_out_wei > 0:
+        cp5_conc = cex_mixer_out_wei / total_out_wei
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # CP6 — Swap-before-Cashout (Liquidity Dump)
+    # ─────────────────────────────────────────────────────────────────────────
+    cp6_detected   = False
+    cp6_latency_s  = None
+
+    token_withdraw_ts: Optional[int] = None
+
+    for tx in all_txs_sorted:
+        from_a     = tx.get("from", "").lower()
+        to_a       = tx.get("to", "").lower()
+        inp        = tx.get("input", "").lower().lstrip("0x")
+        ts         = int(tx.get("timeStamp", 0))
+        sel        = inp[:8] if len(inp) >= 8 else ""
+
+        # Detect token withdrawal event from creator (removeLiquidity or ERC-20 transfer)
+        if from_a == addr and ts >= deploy_ts:
+            if sel in _REMOVE_LIQUIDITY_SELECTORS or sel == _TRANSFER_TOKEN_SELECTOR:
+                if token_withdraw_ts is None:
+                    token_withdraw_ts = ts
+
+        # Detect subsequent DEX interaction
+        if token_withdraw_ts is not None and from_a == addr:
+            entity = known_entities.get(to_a)
+            if entity and entity.get("type", "") in ("DEX_ROUTER", "DEX"):
+                time_diff = ts - token_withdraw_ts
+                if 0 <= time_diff < 86400:  # within 24h
+                    cp6_detected   = True
+                    cp6_latency_s  = float(time_diff)
+                    break  # first occurrence is the most relevant
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # CP7 — Retained Proceeds
+    # ─────────────────────────────────────────────────────────────────────────
+    cp7_retained = None
+
+    if total_victim_wei > 0:
+        ecosystem_balance = 0
+
+        for tx in all_txs_sorted:
+            from_a = tx.get("from", "").lower()
+            to_a   = tx.get("to", "").lower()
+            val    = int(tx.get("value", 0))
+
+            # Money entering the ecosystem FROM external addresses only.
+            # Internal moves (contract -> creator) must NOT be counted again
+            # because the ETH was already counted when the victim deposited it.
+            is_external_source = from_a not in (contract_address, addr)
+            if to_a in (contract_address, addr) and is_external_source and val > 0:
+                ecosystem_balance += val
+
+            # Money leaving the ecosystem subtracts.
+            # Excludes internal ecosystem moves (addr -> contract, contract -> addr).
+            if (from_a in (contract_address, addr)
+                    and to_a not in (contract_address, addr)
+                    and val > 0):
+                ecosystem_balance -= val
+                # Subtract gas cost (gasUsed * gasPrice) for accuracy
+                gas_used  = int(tx.get("gasUsed", 0))
+                gas_price = int(tx.get("gasPrice", 0))
+                ecosystem_balance -= gas_used * gas_price
+
+        balance = max(0, ecosystem_balance)
+        cp7_retained = balance / total_victim_wei
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Return as a dict for model_copy(update={...})
+    # ─────────────────────────────────────────────────────────────────────────
+    return {
+        "cp1_withdrawal_latency_sec":      cp1_latency,
+        "cp2_withdrawal_count":            cp2_count,
+        "cp2_drain_ratio":                 cp2_drain,
+        "cp2_withdrawal_span_hours":       cp2_span_hrs,
+        "cp3_outflow_cv":                  cp3_cv,
+        "cp3_round_number_ratio":          cp3_rr,
+        "cp3_outflow_count":               cp3_count,
+        "cp4_suspicious_destination_count": cp4_suspicious,
+        "cp4_fresh_wallet_ratio":          cp4_fresh_ratio,
+        "cp5_concentration_ratio":         cp5_conc,
+        "cp5_mixer_contact":               cp5_mixer,
+        "cp6_swap_detected":               cp6_detected,
+        "cp6_swap_latency_sec":            cp6_latency_s,
+        "cp7_retained_ratio":              cp7_retained,
+    }
