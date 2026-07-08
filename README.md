@@ -99,40 +99,44 @@ Seven rules that mathematically fingerprint how proceeds are extracted *after* d
 
 ```mermaid
 graph TD
-    User(["🌐 User / Frontend"]) -->|"HTTP REST"| API
+    User([User]) -->|HTTP REST| API
 
-    subgraph FastAPI Backend
-        API["🔌 FastAPI App\n/investigate /sessions"] --> Agent
+    subgraph FB [FastAPI Backend]
+        API[FastAPI App] --> Agent
     end
 
-    subgraph LangGraph AI Agent ["🤖 LangGraph Agent (Gemini 2.0 Flash)"]
-        Agent["📋 Session Manager"] --> Planner["🧠 Gemini Planner\nStrategic reasoning"]
-        Planner --> Profiler["📊 Etherscan Profiler\nRaw tx data fetch"]
-        Profiler --> Scorer["🧮 Trace Scorer\n7 anomaly rules"]
-        Scorer --> Detector["🚨 Anomaly Detector"]
-        Detector --> Condenser["📦 State Condenser\nContext-safe summarisation"]
-        Condenser --> Reporter["📝 Gemini Reporter\nObs→Evidence→Reasoning"]
-        Reporter --> DB[("💾 SQLite Memory\n investigation_history.db")]
+    subgraph LA [LangGraph Agent - Gemini 2.0 Flash]
+        Agent[Session Manager] --> Planner[Gemini Planner]
+        Planner --> Profiler[Etherscan Profiler]
+        Profiler --> TraceScorer[Trace Scorer]
+        TraceScorer --> Detector[Anomaly Detector]
+        Detector --> Condenser[State Condenser]
+        Condenser --> Reporter[Gemini Reporter]
+        Reporter --> DB[(SQLite Memory)]
     end
 
-    subgraph Forensic Engines ["⚖️ Forensic Engines"]
-        Detector -.->|"triggers"| Rugpull["🛑 Rugpull Engine\n20 deterministic rules"]
-        Rugpull -.->|"builds"| Graph["🕸️ FunderGraph\nSQLite network graph"]
-        Graph -.->|"scores"| Scorer2["📈 Risk Scorer\n6-tier verdict"]
+    subgraph FE [Forensic Engines]
+        Rugpull[Rugpull Engine - 20 rules]
+        FGraph[FunderGraph - SQLite]
+        RiskScorer[Risk Scorer - 6 verdicts]
+        Rugpull -.->|builds| FGraph
+        FGraph -.->|scores| RiskScorer
     end
 
-    subgraph Anomaly Rules ["🔍 7 Anomaly Detection Rules"]
-        direction LR
-        R1["📡 High Fan-Out"]
-        R2["💤 Dormant Activation"]
-        R3["⚡ Activity Burst"]
-        R4["💸 Large Transfer"]
-        R5["🕐 Rapid Transfer"]
-        R6["🆕 New Wallet Interaction"]
-        R7["🔢 Round Numbers"]
+    subgraph AR [7 Anomaly Detection Rules]
+        R1[High Fan-Out]
+        R2[Dormant Activation]
+        R3[Activity Burst]
+        R4[Large Transfer]
+        R5[Rapid Transfer]
+        R6[New Wallet Interaction]
+        R7[Round Numbers]
     end
 
-    Detector -.-> Anomaly Rules
+    Detector -.->|triggers| Rugpull
+    Detector -.->|evaluates| R1
+    Detector -.->|evaluates| R2
+    Detector -.->|evaluates| R4
 ```
 
 ---
