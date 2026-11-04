@@ -35,10 +35,11 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from backend.forensics.rugpull.extractor import FeatureVector, extract_features, extract_cashout_features
+from backend.forensics.rugpull.extractor import FeatureVector, extract_features, extract_cashout_features, extract_vs_features
 from backend.forensics.rugpull.rules import RugRuleResult, evaluate_all
 from backend.forensics.rugpull.scorer import RugpullScore, compute_score
 from backend.forensics.rugpull.funding_graph import FundingProvenanceResult
+from backend.forensics.rugpull.exit_features import extract_exit_features, compute_retirement_likelihood
 from backend.settings.base import get_settings
 
 
@@ -186,6 +187,32 @@ class RugpullEngine:
             if cp_fields:
                 fv = fv.model_copy(update=cp_fields)
 
+        # ── Step 3.5: Merge Value-Transfer Semantics features ────────────────
+        vs_fields = extract_vs_features(
+            normal_txs=raw_data.get("normal_txs", []),
+            internal_txs=raw_data.get("internal_txs", []),
+            creator_address=addr,
+            token_txs=raw_data.get("token_txs"),  # None if not fetched — minting metrics skip
+            cp1_withdrawal_latency_sec=fv.cp1_withdrawal_latency_sec,
+        )
+        if vs_fields:
+            fv = fv.model_copy(update=vs_fields)
+
+        # ── Step 3.6: Merge Exit and Dormancy features ───────────────────────
+        # cp7_retained_ratio and cp_victim_inflow_wei are already on fv from Step 3.
+        # EXIT-1 reads cp7_retained_ratio directly inside rule_exit1_silence().
+        # EXIT-4 uses cp_victim_inflow_wei as its relative bulk-transfer threshold.
+        # No new API calls are made here.
+        exit_fields = extract_exit_features(
+            normal_txs=raw_data.get("normal_txs", []),
+            internal_txs=raw_data.get("internal_txs", []),
+            creator_address=addr,
+            cp_victim_inflow_wei=fv.cp_victim_inflow_wei,
+            wallet_age_lookup=wallet_age_lookup or {},
+        )
+        if exit_fields:
+            fv = fv.model_copy(update=exit_fields)
+
         # ── Step 4: Rule evaluation ───────────────────────────────────────────
         results: list[RugRuleResult] = evaluate_all(fv, self._cfg)
 
@@ -195,7 +222,19 @@ class RugpullEngine:
         # ── Step 6: Narrative context (non-trigger features) ──────────────────
         narrative = _build_narrative(fv)
 
-        # ── Step 7: Assemble report ───────────────────────────────────────────
+        # ── Step 6.5: Retirement likelihood (computed AFTER scoring) ─────────
+        # Runs after compute_score() so we use the real score rather than
+        # a placeholder. MODERATE_PATTERN threshold = 36 pts.
+        retirement_fields = compute_retirement_likelihood(
+            silence_days=fv.exit1_silence_days,
+            dormancy_events=fv.exit2_dormancy_event_count,
+            is_already_flagged=scored.score >= 36,
+        )
+        if retirement_fields:
+            fv = fv.model_copy(update=retirement_fields)
+            # Rebuild narrative so the retirement tag is included in the report.
+            narrative = _build_narrative(fv)
+
         triggered = [r for r in results if r.triggered]
 
 
@@ -295,5 +334,16 @@ def _build_narrative(fv: FeatureVector) -> dict[str, Any]:
             "creator_funding_sources DB table at runtime."
         ),
     }
+
+    # EXIT-META — Retirement Likelihood (heuristic, metadata only, never a score trigger)
+    if fv.exit_meta_retirement_likelihood is not None:
+        narrative["retirement_likelihood"] = {
+            "score":   fv.exit_meta_retirement_likelihood,
+            "label":   fv.exit_meta_retirement_label,
+            "warning": (
+                "HEURISTIC ESTIMATE ONLY. These values are not empirically calibrated. "
+                "Use only as a resource-allocation signal for ongoing monitoring."
+            ),
+        }
 
     return narrative

@@ -597,6 +597,142 @@ class RugpullProfileConfig(BaseSettings):
         description="Scan this many hours post-deployment for transferOwnership() calls.",
     )
 
+    # ── VS-1: Repeated Identical-Value Transfers ──────────────────────────────
+    # Detects scripted funding automation via modal inbound value repetition.
+    # Estimates — to be tuned after end-of-cycle comparative analysis.
+    VS1_MODE_FREQ_HIGH: float = Field(
+        default=0.60,
+        ge=0.0,
+        le=1.0,
+        description="VS1 HIGH: fraction of inbound txs with modal value >= this = scripted funding.",
+    )
+    VS1_MODE_FREQ_MEDIUM: float = Field(
+        default=0.40,
+        ge=0.0,
+        le=1.0,
+        description="VS1 MEDIUM: fraction of inbound txs with modal value >= this.",
+    )
+    VS1_MIN_TX_COUNT: int = Field(
+        default=5,
+        ge=2,
+        description="VS1: minimum inbound tx count before modal analysis is meaningful.",
+    )
+
+    # ── VS-2: Round-Number Funding Pattern ────────────────────────────────────
+    # Checks whether pre-deployment inflows use suspiciously clean round amounts.
+    # Applied to pre-deploy window only. Modulo 0.5 ETH boundary.
+    VS2_ROUND_RATIO_HIGH: float = Field(
+        default=0.80,
+        ge=0.0,
+        le=1.0,
+        description="VS2 HIGH: fraction of pre-deploy inflows that are round (mod 0.5 ETH) >= this.",
+    )
+    VS2_ROUND_RATIO_MEDIUM: float = Field(
+        default=0.60,
+        ge=0.0,
+        le=1.0,
+        description="VS2 MEDIUM: fraction of pre-deploy round inflows >= this.",
+    )
+    VS2_MIN_TX_COUNT: int = Field(
+        default=4,
+        ge=2,
+        description="VS2: minimum pre-deploy inflow count before round-number check is meaningful.",
+    )
+
+    # ── VS-3: Gas-Price Anomalies ─────────────────────────────────────────────
+    # Low CV of gasPrice across outgoing txs = script automation.
+    # Note: post-EIP1559 gasPrice = maxFeePerGas (approximation, still valid).
+    VS3_CV_GAS_HIGH: float = Field(
+        default=0.05,
+        ge=0.0,
+        description="VS3 HIGH: coefficient of variation of gasPrice < this = uniform = scripted.",
+    )
+    VS3_ROUND_GAS_RATIO_MEDIUM: float = Field(
+        default=0.90,
+        ge=0.0,
+        le=1.0,
+        description="VS3 MEDIUM: fraction of outgoing txs with integer-Gwei gasPrice >= this.",
+    )
+    VS3_MIN_TX_COUNT: int = Field(
+        default=5,
+        ge=2,
+        description="VS3: minimum outgoing tx count before gas analysis is meaningful.",
+    )
+
+    # ── VS-4: Dusting Frequency ───────────────────────────────────────────────
+    # Outbound sub-threshold ETH 'pings' before cashout = mule wallet probing.
+    VS4_DUST_THRESHOLD_WEI: int = Field(
+        default=100_000_000_000_000,   # 10^14 Wei = 0.0001 ETH
+        ge=1,
+        description="VS4: ETH amount below this (in Wei) is classified as a dust transaction.",
+    )
+    VS4_DUST_PRE_CASHOUT_HIGH: int = Field(
+        default=5,
+        ge=1,
+        description="VS4 HIGH: >= this many outbound dust txs in 24h before first cashout.",
+    )
+    VS4_DUST_LIFETIME_MEDIUM: int = Field(
+        default=3,
+        ge=1,
+        description="VS4 MEDIUM: >= this many outbound dust txs over wallet lifetime.",
+    )
+    VS4_PRE_CASHOUT_WINDOW_SEC: int = Field(
+        default=86400,   # 24 hours
+        ge=3600,
+        description="VS4: window in seconds before first cashout to scan for pre-attack dust.",
+    )
+
+    # ── VS-5: Cross-Deployment Amount Consistency ─────────────────────────────
+    # Jaccard similarity of seed-amount sets across multiple deployments
+    # from the SAME wallet. Cross-wallet version blocked (needs persistent DB).
+    VS5_JACCARD_HIGH: float = Field(
+        default=0.60,
+        ge=0.0,
+        le=1.0,
+        description="VS5 HIGH: avg Jaccard of funding amounts across deployments >= this.",
+    )
+    VS5_JACCARD_MEDIUM: float = Field(
+        default=0.30,
+        ge=0.0,
+        le=1.0,
+        description="VS5 MEDIUM: avg Jaccard of funding amounts across deployments >= this.",
+    )
+    VS5_MIN_DEPLOYMENTS: int = Field(
+        default=2,
+        ge=2,
+        description="VS5: minimum deployment count required before cross-deploy analysis runs.",
+    )
+
+    # ── VS-6: Lifecycle Allocation Ratio (Extraction Multiplier) ─────────────
+    # cashout_eth / (deploy_eth + self_fund_eth) — creator's personal ROI.
+    # LP metrics derived from Uniswap function selectors in normal_txs.
+    VS6_MULTIPLIER_CRITICAL: float = Field(
+        default=50.0,
+        gt=0.0,
+        description="VS6 CRITICAL: extraction multiplier >= this is extreme.",
+    )
+    VS6_MULTIPLIER_HIGH: float = Field(
+        default=10.0,
+        gt=0.0,
+        description="VS6 HIGH: extraction multiplier >= this (combined with LP net positive).",
+    )
+    VS6_MULTIPLIER_MEDIUM: float = Field(
+        default=3.0,
+        gt=0.0,
+        description="VS6 MEDIUM: extraction multiplier >= this.",
+    )
+    VS6_TOKEN_FRACTION_HIGH: float = Field(
+        default=0.90,
+        ge=0.0,
+        le=1.0,
+        description="VS6 HIGH: creator holds >= this fraction of all minted token supply.",
+    )
+    VS6_MINT_TO_LP_RUSH_SEC: int = Field(
+        default=3600,   # 1 hour
+        ge=60,
+        description="VS6: mint-to-addLiquidity latency under this seconds = rushed deployment.",
+    )
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Root Settings: composes all sub-models

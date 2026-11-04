@@ -27,6 +27,15 @@ RULE REGISTER:
   RUG-POST-5  Exchange / Mixer Concentration (CP5)             HIGH / CRITICAL
   RUG-POST-6  Swap-before-Cashout / LP Dump (CP6)              HIGH / CRITICAL
   RUG-POST-7  Retained Proceeds Near Zero (CP7)               HIGH / CRITICAL
+  RUG-VS-1    Scripted Inbound Value Repetition                HIGH / MEDIUM
+  RUG-VS-2    Round-Number Pre-Deploy Funding Pattern          HIGH / MEDIUM
+  RUG-VS-3    Gas-Price Uniformity Anomaly                     HIGH / MEDIUM
+  RUG-VS-4    Pre-Cashout Wallet Ping Dusting                  HIGH / MEDIUM
+  RUG-VS-5    Cross-Deployment Seed Amount Consistency         HIGH / MEDIUM
+  RUG-VS-6    Extreme Extraction Multiplier / LP Drain         CRITICAL / HIGH / MEDIUM
+  RUG-EXIT-1  Post-Rug Silence / Wallet Abandonment           HIGH / MEDIUM
+  RUG-EXIT-2  Reactivation Delay (Burner-Phone Pattern)       CRITICAL / HIGH / MEDIUM
+  RUG-EXIT-4  Fresh Wallet Migration / Proxy Hopping          CRITICAL / HIGH
 
 FEATURES INTENTIONALLY NOT TRIGGERED:
   F7 within-wallet similarity — hypothesis INVERTED by data (genuine > rugpull).
@@ -497,6 +506,239 @@ def rule_new_b_ownership_transfer(fv: FeatureVector) -> RugRuleResult:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# RUG-EXIT-1 — Post-Rug Silence / Wallet Abandonment
+# ─────────────────────────────────────────────────────────────────────────────
+
+RULE_ID_EXIT1  = "RUG-EXIT-1"
+RULE_NAME_EXIT1 = "Post-Rug Silence / Wallet Abandonment"
+
+
+def rule_exit1_silence(fv: FeatureVector) -> RugRuleResult:
+    """
+    Fires when a creator wallet has been completely inactive for an extended
+    period after a substantial victim inflow has been extracted.
+
+    KEY DESIGN NOTE — Why cp7_retained_ratio instead of current_balance_wei:
+    Using the current wallet balance (eth_getBalance) would require an extra
+    API call per wallet and defaults to 0 if the caller forgets to provide it,
+    causing is_drained=True on every wallet. cp7_retained_ratio is already
+    computed by extract_cashout_features() at zero extra cost and is strictly
+    more accurate: it measures deliberate extraction vs. current on-chain state.
+
+    Trigger conditions (requires cp7_retained_ratio to be populated):
+      HIGH   (+20 pts): silence > 30 days AND cp7 < 1%  AND silence_ratio > 0.5
+      MEDIUM (+10 pts): silence >  7 days AND cp7 < 10%
+      NO TRIGGER:       cp7 is None (no victim inflow) OR cp7 >= 10%
+    """
+    silence_days  = fv.exit1_silence_days
+    silence_ratio = fv.exit1_silence_ratio
+    cp7           = fv.cp7_retained_ratio
+
+    # Cannot evaluate if silence was not computed or victim inflow is unknown.
+    if silence_days is None or cp7 is None:
+        return RugRuleResult.not_triggered(RULE_ID_EXIT1, RULE_NAME_EXIT1)
+
+    # If the project retains >= 10% of victim funds, it is not drained.
+    if cp7 >= 0.10:
+        return RugRuleResult.not_triggered(RULE_ID_EXIT1, RULE_NAME_EXIT1)
+
+    if silence_days > 30 and cp7 < 0.01 and silence_ratio is not None and silence_ratio > 0.5:
+        severity = "HIGH"
+        desc = (
+            f"Wallet has been completely inactive for {silence_days:.0f} days "
+            f"({silence_ratio:.0%} of its total lifespan). "
+            f"Only {cp7:.2%} of victim inflow remains in the creator ecosystem."
+        )
+    elif silence_days > 7:
+        severity = "MEDIUM"
+        desc = (
+            f"Wallet has been inactive for {silence_days:.0f} days with "
+            f"only {cp7:.2%} of victim inflow remaining."
+        )
+    else:
+        return RugRuleResult.not_triggered(RULE_ID_EXIT1, RULE_NAME_EXIT1)
+
+    return RugRuleResult(
+        rule_id=RULE_ID_EXIT1,
+        rule_name=RULE_NAME_EXIT1,
+        triggered=True,
+        severity=severity,
+        description=desc,
+        reasoning=(
+            "After a rugpull, scammers go completely silent to avoid being tracked "
+            "and to prevent linking this wallet to their next scam. A wallet that was "
+            "intensely active during the deployment and cashout window, but has since "
+            "been completely dead with near-zero retained funds, is consistent "
+            "exclusively with a scammer who has abandoned their crime scene. "
+            "A legitimate startup always retains runway and continues paying operational "
+            "costs — there is no legitimate reason for total inactivity after full extraction."
+        ),
+        details={
+            "silence_days":           silence_days,
+            "silence_ratio":          silence_ratio,
+            "cp7_retained_ratio":     round(cp7, 6),
+            "cp7_retained_pct":       f"{cp7:.4%}",
+            "thresholds": {
+                "high_silence_days":  30,
+                "high_cp7_max":       0.01,
+                "high_silence_ratio": 0.5,
+                "medium_silence_days": 7,
+                "medium_cp7_max":     0.10,
+            },
+        },
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RUG-EXIT-2 — Reactivation Delay (Burner-Phone Pattern)
+# ─────────────────────────────────────────────────────────────────────────────
+
+RULE_ID_EXIT2  = "RUG-EXIT-2"
+RULE_NAME_EXIT2 = "Reactivation Delay (Burner-Phone Pattern)"
+
+
+def rule_exit2_reactivation(fv: FeatureVector) -> RugRuleResult:
+    """
+    Fires when the wallet history shows one or more dormancy-reactivation
+    cycles — periods of silence > 30 days followed by renewed activity.
+
+    The Reactivation Context Score (RCS) distinguishes innocent long gaps
+    (holiday, bear market) from criminal reactivations (first post-gap tx
+    deploys a new contract or interacts with a mixer).
+
+    Trigger conditions:
+      CRITICAL (+30 pts): dormancy_events >= 2  (serial crime pattern)
+      HIGH     (+20 pts): dormancy_events == 1 AND rcs >= 2 (suspicious reactivation)
+      MEDIUM   (+10 pts): dormancy_events == 1 AND rcs < 2  (ambiguous gap)
+      NO TRIGGER:         dormancy_events == 0
+    """
+    count = fv.exit2_dormancy_event_count
+    rcs   = fv.exit2_reactivation_context_score
+    gap   = fv.exit2_max_gap_days
+
+    if count == 0:
+        return RugRuleResult.not_triggered(RULE_ID_EXIT2, RULE_NAME_EXIT2)
+
+    if count >= 2:
+        severity = "CRITICAL"
+        desc = (
+            f"Wallet shows {count} distinct dormancy-reactivation cycles "
+            f"(longest gap: {gap:.0f} days). Serial crime pattern detected."
+        )
+    elif rcs >= 2:
+        severity = "HIGH"
+        desc = (
+            f"Wallet reactivated after {gap:.0f} days of silence and immediately "
+            f"performed a suspicious action (new contract deployment or mixer interaction). "
+            f"Reactivation Context Score: {rcs}."
+        )
+    else:
+        severity = "MEDIUM"
+        desc = (
+            f"Wallet has one dormancy gap of {gap:.0f} days. "
+            f"Reactivation appears benign (RCS={rcs}) but warrants monitoring."
+        )
+
+    return RugRuleResult(
+        rule_id=RULE_ID_EXIT2,
+        rule_name=RULE_NAME_EXIT2,
+        triggered=True,
+        severity=severity,
+        description=desc,
+        reasoning=(
+            "Serial scammers reuse wallets across multiple rugpulls, operating in "
+            "isolated bursts separated by months of dormancy to avoid pattern detection. "
+            "Each reactivation is examined for WHAT the wallet did first after waking up: "
+            "a legitimate developer resumes normal patterns (paying server costs, governance), "
+            "while a scammer's first action is almost always a new contract deployment or "
+            "routing funds through a mixer — both of which add to the Reactivation Context Score. "
+            "Two or more dormancy cycles is a definitive serial-scammer signature."
+        ),
+        details={
+            "dormancy_event_count":       count,
+            "max_gap_days":               gap,
+            "reactivation_context_score": rcs,
+            "events_detail":              fv.exit2_events_detail,
+            "dormancy_threshold_days":    30,
+            "rcs_scoring": {
+                "+2": "first post-gap tx deploys a new contract (to field empty)",
+                "+2": "first post-gap tx interacts with a known mixer address",
+            },
+        },
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RUG-EXIT-4 — Fresh Wallet Migration / Proxy Hopping
+# ─────────────────────────────────────────────────────────────────────────────
+
+RULE_ID_EXIT4  = "RUG-EXIT-4"
+RULE_NAME_EXIT4 = "Fresh Wallet Migration / Proxy Hopping"
+
+
+def rule_exit4_fresh_migration(fv: FeatureVector) -> RugRuleResult:
+    """
+    Fires when stolen funds were bulk-transferred to a freshly created wallet.
+
+    A "bulk transfer" is a single outgoing tx moving >= 30% of total victim inflow.
+    The destination wallet's age at the time of transfer is key:
+
+    Trigger conditions:
+      CRITICAL (+40 pts): youngest destination was < 1 day old at transfer time
+      HIGH     (+20 pts): youngest destination was < 7 days old at transfer time
+      NO TRIGGER:         all destinations established (>= 7 days) OR
+                          no bulk transfers found OR
+                          destination ages unknown (cache miss)
+    """
+    youngest  = fv.exit4_youngest_dest_age_days
+    fresh_eth = fv.exit4_total_eth_to_fresh_wallets
+    count     = fv.exit4_bulk_transfer_count
+
+    if youngest is None or fresh_eth is None:
+        return RugRuleResult.not_triggered(RULE_ID_EXIT4, RULE_NAME_EXIT4)
+
+    if youngest >= 7:
+        return RugRuleResult.not_triggered(RULE_ID_EXIT4, RULE_NAME_EXIT4)
+
+    if youngest < 1:
+        severity = "CRITICAL"
+        desc = (
+            f"A bulk transfer ({fresh_eth:.3f} ETH) was routed to a wallet that was "
+            f"less than 24 hours old ({youngest:.2f} days) at the time of transfer."
+        )
+    else:
+        severity = "HIGH"
+        desc = (
+            f"A bulk transfer ({fresh_eth:.3f} ETH) was routed to a wallet that was "
+            f"only {youngest:.1f} days old at the time of transfer."
+        )
+
+    return RugRuleResult(
+        rule_id=RULE_ID_EXIT4,
+        rule_name=RULE_NAME_EXIT4,
+        triggered=True,
+        severity=severity,
+        description=desc,
+        reasoning=(
+            "Routing stolen funds through a freshly created wallet is a deliberate "
+            "AML evasion technique. CEX compliance systems flag addresses with known "
+            "criminal history. A brand-new wallet has zero taint history, allowing the "
+            "scammer to interact with exchange deposit addresses without triggering "
+            "compliance alerts. No legitimate business treasury is transferred to a "
+            "wallet created hours earlier — this pattern is exclusive to money laundering."
+        ),
+        details={
+            "youngest_dest_age_days":        youngest,
+            "total_eth_to_fresh_wallets":    fresh_eth,
+            "bulk_transfer_count":           count,
+            "bulk_transfer_findings":        fv.exit4_bulk_transfer_findings,
+            "bulk_threshold_pct_of_inflow":  "30%",
+            "fresh_wallet_max_age_days":     7,
+        },
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Convenience: run all rules
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -535,6 +777,17 @@ def evaluate_all(fv: FeatureVector, cfg: Any) -> list[RugRuleResult]:
         rule_post5_exchange_concentration(fv),
         rule_post6_swap_before_cashout(fv),
         rule_post7_retained_proceeds(fv),
+        # Value-Transfer Semantics rules (VS-1 through VS-6)
+        rule_vs1_repeated_values(fv, cfg),
+        rule_vs2_round_funding(fv, cfg),
+        rule_vs3_gas_anomaly(fv, cfg),
+        rule_vs4_dusting(fv, cfg),
+        rule_vs5_cross_deploy_consistency(fv, cfg),
+        rule_vs6_extraction_multiplier(fv, cfg),
+        # Exit and Dormancy rules (RUG-EXIT-1, RUG-EXIT-2, RUG-EXIT-4)
+        rule_exit1_silence(fv),
+        rule_exit2_reactivation(fv),
+        rule_exit4_fresh_migration(fv),
     ]
 
 
@@ -1194,11 +1447,503 @@ def rule_post5_exchange_concentration(fv: FeatureVector) -> RugRuleResult:
             "legitimate business use case in a real project treasury."
         ),
         details={
-            "mixer_contact":        mixer,
-            "concentration_ratio":  round(conc, 4) if conc is not None else None,
+            "concentration_ratio": round(conc, 4) if conc is not None else None,
+            "mixer_contact":       mixer,
+        },
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VS Series — Value-Transfer Semantics Rules (RUG-VS-1 to RUG-VS-6)
+# ─────────────────────────────────────────────────────────────────────────────
+# These rules operate on VS features computed by extract_vs_features().
+# All thresholds are read from RugpullProfileConfig (VS* fields in base.py).
+# Thresholds are current hardcoded estimates to be refined via end-of-cycle
+# comparative analysis once the full dataset (90 rugpull + 80+ genuine) is run.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def rule_vs1_repeated_values(fv: FeatureVector, cfg: Any) -> RugRuleResult:
+    """
+    RUG-VS-1: Scripted Inbound Value Repetition
+
+    What it checks:
+        Calculates what fraction of all inbound ETH transfers share the
+        same (modal) value. A human receives money in irregular amounts.
+        A script sends exactly the same amount every time it runs.
+
+    Threshold logic:
+        mode_freq_ratio >= HIGH  → HIGH severity (strongly scripted)
+        mode_freq_ratio >= MED   → MEDIUM severity (partially scripted)
+
+    Data requirement: at least VS1_MIN_TX_COUNT inbound transactions.
+    """
+    RULE_ID   = "RUG-VS-1"
+    RULE_NAME = "Scripted Inbound Value Repetition"
+
+    mode_freq = fv.vs1_mode_freq_ratio
+    count     = fv.vs1_inbound_count
+    top2      = fv.vs1_top2_coverage
+
+    # Not enough data to be meaningful
+    if mode_freq is None or count < cfg.VS1_MIN_TX_COUNT:
+        return RugRuleResult.not_triggered(RULE_ID, RULE_NAME)
+
+    if mode_freq >= cfg.VS1_MODE_FREQ_HIGH:
+        severity = "HIGH"
+        desc = (
+            f"Highly repetitive inbound funding: {mode_freq:.1%} of all "
+            f"{count} inbound transfers share the same ETH amount. "
+            "This is the signature of automated funding scripts."
+        )
+    elif mode_freq >= cfg.VS1_MODE_FREQ_MEDIUM:
+        severity = "MEDIUM"
+        desc = (
+            f"Moderately repetitive inbound funding: {mode_freq:.1%} of "
+            f"{count} inbound transfers share the same ETH amount."
+        )
+    else:
+        return RugRuleResult.not_triggered(RULE_ID, RULE_NAME)
+
+    return RugRuleResult(
+        rule_id=RULE_ID,
+        rule_name=RULE_NAME,
+        triggered=True,
+        severity=severity,
+        description=desc,
+        reasoning=(
+            "Legitimate funders transfer variable amounts — payroll, investments, "
+            "and personal transfers are inherently irregular in size. A funding "
+            "script, on the other hand, is coded to send a fixed amount per run "
+            "to make accounting simple. When > 60% of all inbound transfers share "
+            "the exact same Wei value, the probability that this is organic human "
+            "activity approaches zero. This is the classic signature of a "
+            "scripted multi-wallet rugpull funding pipeline."
+        ),
+        details={
+            "mode_freq_ratio":  round(mode_freq, 4),
+            "top2_coverage":    round(top2, 4) if top2 is not None else None,
+            "inbound_count":    count,
             "thresholds": {
-                "cex_high_min":     0.90,
-                "mixer_always_critical": True,
+                "high_min":   cfg.VS1_MODE_FREQ_HIGH,
+                "medium_min": cfg.VS1_MODE_FREQ_MEDIUM,
+                "min_count":  cfg.VS1_MIN_TX_COUNT,
+            },
+        },
+    )
+
+
+def rule_vs2_round_funding(fv: FeatureVector, cfg: Any) -> RugRuleResult:
+    """
+    RUG-VS-2: Round-Number Pre-Deploy Funding Pattern
+
+    What it checks:
+        Before a creator deploys a contract, they need ETH to cover gas
+        and initial liquidity. This rule checks if those pre-deploy inflows
+        are suspiciously round (multiples of 0.5 ETH). Scripts are written
+        to send clean round numbers; humans send irregular amounts.
+
+    Data requirement: at least VS2_MIN_TX_COUNT pre-deploy inbound transactions.
+    """
+    RULE_ID   = "RUG-VS-2"
+    RULE_NAME = "Round-Number Pre-Deploy Funding Pattern"
+
+    ratio = fv.vs2_round_funding_ratio
+    count = fv.vs2_pre_deploy_funding_count
+
+    if ratio is None or count < cfg.VS2_MIN_TX_COUNT:
+        return RugRuleResult.not_triggered(RULE_ID, RULE_NAME)
+
+    if ratio >= cfg.VS2_ROUND_RATIO_HIGH:
+        severity = "HIGH"
+        desc = (
+            f"{ratio:.1%} of {count} pre-deployment inflows are exact multiples "
+            "of 0.5 ETH. This is a strong scripted funding signature."
+        )
+    elif ratio >= cfg.VS2_ROUND_RATIO_MEDIUM:
+        severity = "MEDIUM"
+        desc = (
+            f"{ratio:.1%} of {count} pre-deployment inflows are exact multiples "
+            "of 0.5 ETH. Partial scripted funding pattern detected."
+        )
+    else:
+        return RugRuleResult.not_triggered(RULE_ID, RULE_NAME)
+
+    return RugRuleResult(
+        rule_id=RULE_ID,
+        rule_name=RULE_NAME,
+        triggered=True,
+        severity=severity,
+        description=desc,
+        reasoning=(
+            "Human investors wire amounts based on fiat conversion rates, gas "
+            "budgets, and personal preferences — these rarely land on exact "
+            "0.5 ETH boundaries. Automation scripts, however, are parameterised "
+            "with clean amounts (0.5, 1.0, 1.5 ETH) because the author chose a "
+            "round number when writing the script. A high ratio of round-number "
+            "pre-deploy inflows indicates the wallet was funded by a script "
+            "rather than by organic investors or a human operator."
+        ),
+        details={
+            "round_funding_ratio":     round(ratio, 4),
+            "pre_deploy_funding_count": count,
+            "thresholds": {
+                "high_min":   cfg.VS2_ROUND_RATIO_HIGH,
+                "medium_min": cfg.VS2_ROUND_RATIO_MEDIUM,
+                "min_count":  cfg.VS2_MIN_TX_COUNT,
+            },
+        },
+    )
+
+
+def rule_vs3_gas_anomaly(fv: FeatureVector, cfg: Any) -> RugRuleResult:
+    """
+    RUG-VS-3: Gas-Price Uniformity Anomaly
+
+    What it checks:
+        The coefficient of variation (CV = stdev/mean) of gasPrice across
+        all outgoing transactions. A script sets a hardcoded gas price —
+        it will use exactly the same value (or very close to it) every time.
+        A human adjusts gas manually or uses a wallet that picks from a
+        live gas estimator, producing natural variation.
+
+    Note on EIP-1559: post-London, gasPrice in Etherscan = maxFeePerGas.
+    Effective gas paid varies, but maxFeePerGas is still set by the script
+    config and remains uniform across scripted transactions.
+
+    Data requirement: at least VS3_MIN_TX_COUNT outgoing transactions with
+    non-zero gasPrice.
+    """
+    RULE_ID   = "RUG-VS-3"
+    RULE_NAME = "Gas-Price Uniformity Anomaly"
+
+    cv         = fv.vs3_cv_gas
+    round_gas  = fv.vs3_round_gas_ratio
+    gas_count  = fv.vs3_gas_tx_count
+
+    if gas_count < cfg.VS3_MIN_TX_COUNT:
+        return RugRuleResult.not_triggered(RULE_ID, RULE_NAME)
+
+    triggered  = False
+    severity   = "MEDIUM"
+    desc_parts = []
+
+    # CV check: extremely uniform gas price = scripted
+    if cv is not None and cv < cfg.VS3_CV_GAS_HIGH:
+        triggered = True
+        severity  = "HIGH"
+        desc_parts.append(
+            f"Gas price CV = {cv:.4f} (< {cfg.VS3_CV_GAS_HIGH}) — "
+            "nearly identical gasPrice across all outgoing transactions."
+        )
+
+    # Round-gas check: integer-Gwei prices are a scripting artifact
+    if round_gas is not None and round_gas >= cfg.VS3_ROUND_GAS_RATIO_MEDIUM:
+        triggered = True
+        desc_parts.append(
+            f"{round_gas:.1%} of outgoing txs use integer-Gwei gas prices "
+            "(scripted gas configuration)."
+        )
+
+    if not triggered:
+        return RugRuleResult.not_triggered(RULE_ID, RULE_NAME)
+
+    return RugRuleResult(
+        rule_id=RULE_ID,
+        rule_name=RULE_NAME,
+        triggered=True,
+        severity=severity,
+        description=" | ".join(desc_parts),
+        reasoning=(
+            "Gas prices on Ethereum fluctuate constantly. Human users either "
+            "manually set gas or use wallet software that reads the current "
+            "recommended fee — both produce natural variation over time. A script, "
+            "however, typically hardcodes a gasPrice value (e.g., '5000000000' = 5 Gwei) "
+            "and reuses it for every transaction. This produces a near-zero CV and "
+            "a high ratio of integer-Gwei prices. Both signals indicate automation "
+            "rather than manual wallet operation."
+        ),
+        details={
+            "cv_gas":           round(cv, 6) if cv is not None else None,
+            "round_gas_ratio":  round(round_gas, 4) if round_gas is not None else None,
+            "gas_tx_count":     gas_count,
+            "thresholds": {
+                "cv_high_max":          cfg.VS3_CV_GAS_HIGH,
+                "round_gas_medium_min": cfg.VS3_ROUND_GAS_RATIO_MEDIUM,
+                "min_count":            cfg.VS3_MIN_TX_COUNT,
+            },
+        },
+    )
+
+
+def rule_vs4_dusting(fv: FeatureVector, cfg: Any) -> RugRuleResult:
+    """
+    RUG-VS-4: Pre-Cashout Wallet Ping Dusting
+
+    What it checks:
+        Tiny outbound ETH transfers (< 0.0001 ETH) sent from the creator
+        wallet before or during the cashout phase. These 'dust' transactions
+        are used to verify that mule wallets are alive and receiving before
+        routing the main funds through them.
+
+    Two trigger conditions:
+        1. HIGH: >= VS4_DUST_PRE_CASHOUT_HIGH dust txs in 24h before cashout
+        2. MEDIUM: >= VS4_DUST_LIFETIME_MEDIUM dust txs over wallet lifetime
+    """
+    RULE_ID   = "RUG-VS-4"
+    RULE_NAME = "Pre-Cashout Wallet Ping Dusting"
+
+    out_dust       = fv.vs4_outbound_dust_count
+    pre_dust       = fv.vs4_pre_cashout_dust_count
+    unique_targets = fv.vs4_unique_dust_destinations
+
+    if out_dust == 0:
+        return RugRuleResult.not_triggered(RULE_ID, RULE_NAME)
+
+    if pre_dust >= cfg.VS4_DUST_PRE_CASHOUT_HIGH:
+        severity = "HIGH"
+        desc = (
+            f"{pre_dust} outbound dust transactions detected in the 24-hour "
+            f"window before the first cashout event, targeting "
+            f"{unique_targets} distinct address(es). "
+            "Classic pre-attack mule wallet probing pattern."
+        )
+    elif out_dust >= cfg.VS4_DUST_LIFETIME_MEDIUM:
+        severity = "MEDIUM"
+        desc = (
+            f"{out_dust} total outbound dust transactions detected over wallet "
+            f"lifetime, targeting {unique_targets} distinct address(es)."
+        )
+    else:
+        return RugRuleResult.not_triggered(RULE_ID, RULE_NAME)
+
+    return RugRuleResult(
+        rule_id=RULE_ID,
+        rule_name=RULE_NAME,
+        triggered=True,
+        severity=severity,
+        description=desc,
+        reasoning=(
+            "Before routing stolen funds through a chain of mule wallets, "
+            "sophisticated rugpullers send tiny 'ping' amounts (< 0.0001 ETH) "
+            "to each mule address to confirm it is active and has not been "
+            "blacklisted. This is operationally necessary — a failed transfer "
+            "to a dead wallet wastes gas and creates a detectable gap in the "
+            "money flow. Legitimate wallets have no operational need to send "
+            "sub-dust amounts to multiple fresh wallets in the hours before a "
+            "large cash withdrawal event."
+        ),
+        details={
+            "outbound_dust_total":       out_dust,
+            "pre_cashout_dust_count":    pre_dust,
+            "unique_dust_destinations":  unique_targets,
+            "inbound_dust_count":        fv.vs4_inbound_dust_count,
+            "dust_threshold_wei":        cfg.VS4_DUST_THRESHOLD_WEI,
+            "thresholds": {
+                "pre_cashout_high_min":  cfg.VS4_DUST_PRE_CASHOUT_HIGH,
+                "lifetime_medium_min":   cfg.VS4_DUST_LIFETIME_MEDIUM,
+            },
+        },
+    )
+
+
+def rule_vs5_cross_deploy_consistency(fv: FeatureVector, cfg: Any) -> RugRuleResult:
+    """
+    RUG-VS-5: Cross-Deployment Seed Amount Consistency
+
+    What it checks:
+        When a single wallet deploys multiple contracts, compares the set of
+        ETH seed amounts (inflows in the 72h window before each deployment)
+        across consecutive deployments using Jaccard similarity.
+
+        High similarity = the same script funded each deployment using the
+        same amount set = same operator running the same automation.
+
+    Scope: single-wallet only (cross-wallet version requires persistent DB).
+    Only fires when the wallet has >= VS5_MIN_DEPLOYMENTS deployments.
+    """
+    RULE_ID   = "RUG-VS-5"
+    RULE_NAME = "Cross-Deployment Seed Amount Consistency"
+
+    jaccard   = fv.vs5_avg_cross_deploy_jaccard
+    dep_count = fv.vs5_deployment_count_for_vs5
+
+    if jaccard is None or dep_count < cfg.VS5_MIN_DEPLOYMENTS:
+        return RugRuleResult.not_triggered(RULE_ID, RULE_NAME)
+
+    if jaccard >= cfg.VS5_JACCARD_HIGH:
+        severity = "HIGH"
+        desc = (
+            f"Cross-deployment seed amount Jaccard = {jaccard:.3f} across "
+            f"{dep_count} deployments. Nearly identical pre-deploy funding "
+            "amounts across multiple contracts — same automation script."
+        )
+    elif jaccard >= cfg.VS5_JACCARD_MEDIUM:
+        severity = "MEDIUM"
+        desc = (
+            f"Moderate cross-deployment seed consistency (Jaccard = {jaccard:.3f} "
+            f"across {dep_count} deployments)."
+        )
+    else:
+        return RugRuleResult.not_triggered(RULE_ID, RULE_NAME)
+
+    return RugRuleResult(
+        rule_id=RULE_ID,
+        rule_name=RULE_NAME,
+        triggered=True,
+        severity=severity,
+        description=desc,
+        reasoning=(
+            "A repeat rugpull operator running an automated workflow will fund "
+            "each deployment the same way: the same seed amounts, from the same "
+            "source wallets, in the same proportions. This produces a high Jaccard "
+            "similarity between the pre-deployment inflow sets of consecutive "
+            "deployments. A legitimate developer who deploys multiple contracts "
+            "will fund them with variable amounts depending on the project's needs, "
+            "team composition, and funding round — the amounts will not be "
+            "mechanically identical across deployments."
+        ),
+        details={
+            "avg_jaccard_similarity":    round(jaccard, 4),
+            "deployment_count":          dep_count,
+            "thresholds": {
+                "high_min":         cfg.VS5_JACCARD_HIGH,
+                "medium_min":       cfg.VS5_JACCARD_MEDIUM,
+                "min_deployments":  cfg.VS5_MIN_DEPLOYMENTS,
+            },
+        },
+    )
+
+
+def rule_vs6_extraction_multiplier(fv: FeatureVector, cfg: Any) -> RugRuleResult:
+    """
+    RUG-VS-6: Extreme Extraction Multiplier + LP Drain Evidence
+
+    What it checks:
+        Three overlapping signals about the creator's financial return:
+
+        1. Extraction multiplier: cashout_eth / (deploy_eth + self_fund_eth).
+           If a creator invested 0.1 ETH and extracted 10 ETH, their multiplier
+           is 100×. Legitimate projects have multipliers of 1×-3× (paying
+           themselves back from revenue). Rugpullers have 10×-10000× because
+           their cashout includes victim ETH, not project revenue.
+
+        2. LP net drain: ETH removed from Uniswap LP minus ETH added.
+           If positive, creator extracted more ETH from the pool than they put
+           in — only possible because victims' ETH filled the pool in between.
+
+        3. Token monopoly: creator holds > 90% of total minted token supply
+           AND liquidity was added within 1 hour of minting. This is the
+           structural setup for a dump-the-supply rugpull.
+
+    Severity:
+        CRITICAL: multiplier >= 50× OR (lp_net > 0 AND multiplier >= 10×)
+        HIGH:     (lp_net > 0 AND multiplier >= 3×) OR token monopoly + rush
+        MEDIUM:   multiplier >= 3× alone (no LP evidence)
+    """
+    RULE_ID   = "RUG-VS-6"
+    RULE_NAME = "Extreme Extraction Multiplier / LP Drain"
+
+    multiplier   = fv.vs6_extraction_multiplier
+    lp_net       = fv.vs6_lp_net_eth
+    token_frac   = fv.vs6_creator_token_fraction
+    mint_lat     = fv.vs6_mint_to_lp_latency_sec
+
+    # Need at least the extraction multiplier to proceed
+    if multiplier is None:
+        return RugRuleResult.not_triggered(RULE_ID, RULE_NAME)
+
+    lp_drain_confirmed = (lp_net is not None and lp_net > cfg.VS6_MULTIPLIER_MEDIUM * 0)
+    # lp_net > 0 means creator took out more than they put in from the LP
+    lp_net_positive    = (lp_net is not None and lp_net > 0.0)
+    token_monopoly     = (
+        token_frac is not None
+        and token_frac >= cfg.VS6_TOKEN_FRACTION_HIGH
+        and mint_lat is not None
+        and mint_lat < cfg.VS6_MINT_TO_LP_RUSH_SEC
+    )
+
+    desc_parts = []
+    severity   = None
+
+    # CRITICAL conditions
+    if multiplier >= cfg.VS6_MULTIPLIER_CRITICAL:
+        severity = "CRITICAL"
+        desc_parts.append(
+            f"Extraction multiplier = {multiplier:.1f}× "
+            f"(invested {fv.vs6_v_deploy_eth or 0:.4f} ETH, "
+            f"extracted {fv.vs6_v_cashout_eth or 0:.4f} ETH)."
+        )
+    elif lp_net_positive and multiplier >= cfg.VS6_MULTIPLIER_HIGH:
+        severity = "CRITICAL"
+        desc_parts.append(
+            f"LP net drain = +{lp_net:.4f} ETH confirmed "
+            f"(added {fv.vs6_lp_eth_added or 0:.4f} ETH, "
+            f"removed {fv.vs6_lp_eth_removed or 0:.4f} ETH) "
+            f"with {multiplier:.1f}× extraction multiplier."
+        )
+
+    # HIGH conditions (if not already CRITICAL)
+    if severity is None:
+        if lp_net_positive and multiplier >= cfg.VS6_MULTIPLIER_MEDIUM:
+            severity = "HIGH"
+            desc_parts.append(
+                f"LP net drain = +{lp_net:.4f} ETH with {multiplier:.1f}× multiplier."
+            )
+        elif token_monopoly:
+            severity = "HIGH"
+            desc_parts.append(
+                f"Token supply monopoly: creator holds {token_frac:.1%} of total "
+                f"minted supply, with liquidity added {mint_lat}s after minting "
+                f"(rushed deployment)."
+            )
+
+    # MEDIUM: multiplier alone, no LP confirmation
+    if severity is None and multiplier >= cfg.VS6_MULTIPLIER_MEDIUM:
+        severity = "MEDIUM"
+        desc_parts.append(
+            f"Extraction multiplier = {multiplier:.1f}× "
+            f"(no LP drain data available for confirmation)."
+        )
+
+    if severity is None:
+        return RugRuleResult.not_triggered(RULE_ID, RULE_NAME)
+
+    return RugRuleResult(
+        rule_id=RULE_ID,
+        rule_name=RULE_NAME,
+        triggered=True,
+        severity=severity,
+        description=" | ".join(desc_parts),
+        reasoning=(
+            "A legitimate project founder who invests their own ETH and later "
+            "withdraws profits expects a modest return (1×-3×) proportional to "
+            "the project's real revenue. A rugpuller invests a minimal 'seed' "
+            "amount (to make the contract look funded) and then extracts the "
+            "entire pool of victim ETH — producing multipliers of 10×-10000×. "
+            "LP net drain is the most direct evidence: if the creator removed "
+            "more ETH from the Uniswap pool than they added, the surplus came "
+            "from victim purchases. Token supply monopoly (holding 90%+ of all "
+            "minted tokens) is the structural prerequisite for a token dump — "
+            "the creator can sell their tokens into any liquidity that victims "
+            "provide, draining the pool completely."
+        ),
+        details={
+            "extraction_multiplier":    round(multiplier, 4),
+            "v_deploy_eth":             fv.vs6_v_deploy_eth,
+            "v_self_fund_eth":          fv.vs6_v_self_fund_eth,
+            "v_cashout_eth":            fv.vs6_v_cashout_eth,
+            "lp_eth_added":             fv.vs6_lp_eth_added,
+            "lp_eth_removed":           fv.vs6_lp_eth_removed,
+            "lp_net_eth":               fv.vs6_lp_net_eth,
+            "creator_token_fraction":   fv.vs6_creator_token_fraction,
+            "mint_to_lp_latency_sec":   fv.vs6_mint_to_lp_latency_sec,
+            "thresholds": {
+                "critical_multiplier": cfg.VS6_MULTIPLIER_CRITICAL,
+                "high_multiplier":     cfg.VS6_MULTIPLIER_HIGH,
+                "medium_multiplier":   cfg.VS6_MULTIPLIER_MEDIUM,
+                "token_fraction_high": cfg.VS6_TOKEN_FRACTION_HIGH,
+                "mint_lp_rush_sec":    cfg.VS6_MINT_TO_LP_RUSH_SEC,
             },
         },
     )

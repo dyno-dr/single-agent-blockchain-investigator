@@ -92,3 +92,7 @@ eoa_addresses.txt
 contract_addresses.txt
 error_addresses.txt
 batch_results*.csv
+
+# Large data caches (exceed GitHub 100MB limit)
+rugpull_live_cache.json
+full_feature_matrix.xlsx

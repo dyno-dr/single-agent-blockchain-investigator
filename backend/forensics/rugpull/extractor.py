@@ -181,10 +181,101 @@ class FeatureVector(BaseModel):
     # CP7 — Retained proceeds: fraction of victim inflow still in creator ecosystem
     cp7_retained_ratio: Optional[float] = None
 
+    # ── CP-AUX — Auxiliary cashout field exposed for downstream EXIT-4 use ──────
+    # total_victim_wei is computed internally by extract_cashout_features().
+    # Exposed here so exit_features.py can use it as a bulk-transfer threshold
+    # without recomputing it or making any extra API calls.
+    cp_victim_inflow_wei: Optional[int] = None
+
+    # ── Value-Transfer Semantics Features (VS1-VS6) ───────────────────────────
+    # All VS fields default to None / 0 / False so callers that do not invoke
+    # extract_vs_features() continue to work without any code changes.
+    # Populated by extract_vs_features() which is called separately from
+    # extract_cashout_features() in the engine's run() pipeline.
+
+    # VS1 — Repeated identical-value inbound transfers
+    # Detects scripted funding: the same ETH amount repeated many times into wallet.
+    # mode_freq_ratio = count(most_common_value) / total_inbound_count
+    vs1_mode_freq_ratio: Optional[float] = None
+    vs1_top2_coverage: Optional[float] = None    # top-2 most common values / total
+    vs1_inbound_count: int = 0
+
+    # VS2 — Round-number funding pattern (pre-deploy window only)
+    # Checks if pre-deployment inflows come in clean multiples of 0.5 ETH.
+    # Applied exclusively BEFORE first deployment timestamp.
+    vs2_round_funding_ratio: Optional[float] = None  # fraction that are mod 0.5 ETH == 0
+    vs2_pre_deploy_funding_count: int = 0
+
+    # VS3 — Gas-price anomalies (outgoing transactions only)
+    # Low CV of gasPrice across outgoing txs = script hardcoded gas = not a human.
+    # Caveat: post-EIP1559 gasPrice = maxFeePerGas (approximation, signal still valid).
+    vs3_cv_gas: Optional[float] = None           # stdev(gasPrice) / mean(gasPrice)
+    vs3_round_gas_ratio: Optional[float] = None  # fraction with integer-Gwei gasPrice
+    vs3_gas_tx_count: int = 0
+
+    # VS4 — Dusting frequency
+    # Outbound sub-threshold ETH 'pings' to test if mule wallets are alive.
+    # Dust threshold: < 0.0001 ETH (10^14 Wei). Inbound dust is informational only.
+    vs4_outbound_dust_count: int = 0
+    vs4_pre_cashout_dust_count: int = 0      # dust sent in 24h window before cashout
+    vs4_unique_dust_destinations: int = 0   # distinct addresses pinged
+    vs4_inbound_dust_count: int = 0         # informational — not a score trigger
+
+    # VS5 — Cross-deployment amount consistency (single-wallet, multi-deploy)
+    # Jaccard similarity of pre-deploy funding amount sets across deployments.
+    # Only computed when wallet has >= 2 deployments.
+    vs5_avg_cross_deploy_jaccard: Optional[float] = None
+    vs5_deployment_count_for_vs5: int = 0   # deployments included in this analysis
+
+    # VS6 — Lifecycle allocation ratio + LP operation accounting
+    # Core ETH accounting: how much the creator put in vs. extracted.
+    vs6_v_deploy_eth: Optional[float] = None       # ETH attached to deployment tx(s)
+    vs6_v_self_fund_eth: Optional[float] = None    # ETH creator sent into own contract
+    vs6_v_cashout_eth: Optional[float] = None      # ETH extracted from contract by creator
+    vs6_extraction_multiplier: Optional[float] = None  # cashout / (deploy + self_fund)
+    # LP operation metrics — Uniswap selectors from normal_txs (0 extra API calls)
+    vs6_lp_eth_added: Optional[float] = None       # ETH creator added to any DEX LP
+    vs6_lp_eth_removed: Optional[float] = None     # ETH creator removed from any DEX LP
+    vs6_lp_net_eth: Optional[float] = None         # removed − added (positive = net drain)
+    # Minting metrics — from tokentx endpoint (optional, 1 extra API call)
+    vs6_creator_token_fraction: Optional[float] = None  # creator's share of all minted supply
+    vs6_mint_to_lp_latency_sec: Optional[int] = None    # seconds: first mint → first addLiquidity
+
+    # ── Exit and Dormancy Features (RUG-EXIT-1, EXIT-2, EXIT-4, EXIT-META) ───────
+    # Populated by extract_exit_features() called at Step 3.6 in engine.py.
+    # None values mean the feature is undefined for this wallet.
+    # Rules must never flag a None field.
+    #
+    # NOTE: No exit1_balance_usd or exit1_is_drained fields.
+    # The "drained" check reads cp7_retained_ratio directly from FeatureVector.
+    # cp7_retained_ratio is already computed at Step 3 (cashout extractor) with
+    # zero extra API calls. Using it avoids the false-positive risk of a
+    # current_balance_wei that defaults to 0 when not fetched.
+
+    # EXIT-1 — Post-Rug Silence Duration
+    exit1_silence_days: Optional[float] = None
+    exit1_silence_ratio: Optional[float] = None   # silence_days / total_lifespan_days
+
+    # EXIT-2 — Reactivation Delay
+    exit2_dormancy_event_count: int = 0           # count of gaps > 30 days
+    exit2_max_gap_days: Optional[float] = None    # largest single gap in history
+    exit2_reactivation_context_score: int = 0     # RCS of the most suspicious event
+    exit2_events_detail: list[dict] = Field(default_factory=list)
+
+    # EXIT-4 — Fresh Wallet Migration / Proxy Hopping
+    exit4_youngest_dest_age_days: Optional[float] = None
+    exit4_total_eth_to_fresh_wallets: Optional[float] = None
+    exit4_bulk_transfer_count: int = 0
+    exit4_bulk_transfer_findings: list[dict] = Field(default_factory=list)
+
+    # EXIT-META — Retirement Likelihood Score (metadata tag only, never a score trigger)
+    exit_meta_retirement_likelihood: Optional[float] = None  # 0.0 to 0.99
+    exit_meta_retirement_label: Optional[str] = None         # VERY_LIKELY_RETIRED / etc.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Internal helpers
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def _selector(input_data: str) -> Optional[str]:
     """Extract the 4-byte function selector (first 8 hex chars after 0x)."""
@@ -264,15 +355,20 @@ def _nonce_entropy(intervals_sec: list[float]) -> Optional[float]:
 # Public API
 # ─────────────────────────────────────────────────────────────────────────────
 
-def extract_features(address: str, raw: dict) -> FeatureVector:
+def extract_features(address: str, raw: dict, token_txs: list | None = None) -> FeatureVector:
     """
     Compute the full FeatureVector for one wallet from its raw Etherscan data.
 
     Args:
-        address: Wallet address (lowercase).
-        raw:     Dict with keys "normal_txs" and "internal_txs" — the same
-                 structure produced by EtherscanClient in the threshold script
-                 and by the main application's blockchain layer.
+        address:    Wallet address (lowercase).
+        raw:        Dict with keys "normal_txs" and "internal_txs" — the same
+                    structure produced by EtherscanClient in the threshold script
+                    and by the main application's blockchain layer.
+        token_txs:  Optional list of ERC-20 token transfer events from the
+                    Etherscan 'tokentx' endpoint. When provided, VS6 minting
+                    metrics (creator_token_fraction, mint_to_lp_latency_sec)
+                    are computed. When None, these fields remain None.
+                    All other VS features run regardless of token_txs.
 
     Returns:
         FeatureVector with all fields populated (None where undefined).
@@ -749,4 +845,409 @@ def extract_cashout_features(
         "cp6_swap_detected":               cp6_detected,
         "cp6_swap_latency_sec":            cp6_latency_s,
         "cp7_retained_ratio":              cp7_retained,
+        # Exposed for downstream EXIT-4 use (avoids double computation).
+        # total_victim_wei is None-safe: if victim_inflows was empty, it is 0
+        # and EXIT-4 will see cp_victim_inflow_wei == 0 and skip gracefully.
+        "cp_victim_inflow_wei":            total_victim_wei if total_victim_wei > 0 else None,
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Value-Transfer Semantics Feature Extraction (VS1-VS6)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Uniswap V2/V3 function selectors for liquidity operations.
+# These are the first 4 bytes (8 hex chars) of the keccak256 of the ABI
+# function signature. They live in the 'input' field of normal_txs.
+# No extra API call needed — the data is already in the fetched normal_txs.
+_ADD_LIQUIDITY_SELECTORS: frozenset[str] = frozenset({
+    "f305d719",  # addLiquidityETH(address,uint,uint,uint,address,uint)
+    "e8e33700",  # addLiquidity(address,address,uint,uint,uint,uint,address,uint)
+    "2f2d783d",  # SushiSwap addLiquidity variant
+})
+
+# removeLiquidity selectors are already defined above (_REMOVE_LIQUIDITY_SELECTORS)
+# We reuse them for VS6 LP removal detection.
+_ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
+_MINIMUM_STAKE_ETH = 0.001   # floor to avoid division-by-zero for zero-investment wallets
+
+
+def extract_vs_features(
+    normal_txs: list[dict],
+    internal_txs: list[dict],
+    creator_address: str,
+    token_txs: list[dict] | None = None,
+    cp1_withdrawal_latency_sec: float | None = None,
+) -> dict:
+    """
+    Compute the 6 Value-Transfer Semantics feature groups (VS1-VS6).
+
+    Returns a dict suitable for:
+        fv = fv.model_copy(update=extract_vs_features(...))
+
+    Args:
+        normal_txs:                  Etherscan normal transaction list.
+        internal_txs:                Etherscan internal transaction list.
+        creator_address:             The creator wallet address (any case).
+        token_txs:                   Optional ERC-20 token transfer events
+                                     from Etherscan tokentx endpoint.
+                                     When None, minting metrics stay None.
+        cp1_withdrawal_latency_sec:  First cashout timestamp reference for
+                                     VS4 pre-cashout dust window calculation.
+                                     Pass the value already computed by
+                                     extract_cashout_features() if available.
+    """
+    addr = creator_address.lower()
+    ETH  = _ETH   # 10^18 Wei per ETH
+
+    # ── 0. Sort all transactions chronologically ───────────────────────────────
+    all_txs = sorted(
+        normal_txs + internal_txs,
+        key=lambda t: int(t.get("timeStamp", 0))
+    )
+
+    # ── 0a. Find first deployment timestamp ───────────────────────────────────
+    # VS2 needs this to separate pre-deploy vs post-deploy inflows.
+    # VS6 needs it to separate self-funding from victim inflows.
+    deploy_txs = sorted(
+        [tx for tx in normal_txs
+         if tx.get("from", "").lower() == addr
+         and tx.get("to", "") in ("", None)
+         and tx.get("contractAddress") not in ("", None)],
+        key=lambda t: int(t.get("timeStamp", 0))
+    )
+    first_deploy_ts: int | None = (
+        int(deploy_txs[0].get("timeStamp", 0)) if deploy_txs else None
+    )
+    contract_address: str | None = (
+        deploy_txs[0].get("contractAddress", "").lower() if deploy_txs else None
+    )
+
+    # ── 0b. Partition inbound ETH transactions ────────────────────────────────
+    # all_inbound: every tx where creator receives ETH (value > 0)
+    # pre_deploy_inbound: only those before first deployment (VS2 scope)
+    all_inbound = [
+        tx for tx in all_txs
+        if tx.get("to", "").lower() == addr
+        and tx.get("from", "").lower() != addr
+        and int(tx.get("value", 0)) > 0
+    ]
+    pre_deploy_inbound = (
+        [tx for tx in all_inbound
+         if int(tx.get("timeStamp", 0)) < first_deploy_ts]
+        if first_deploy_ts is not None
+        else all_inbound
+    )
+
+    # ── 0c. Outgoing normal transactions ──────────────────────────────────────
+    outgoing = [
+        tx for tx in normal_txs
+        if tx.get("from", "").lower() == addr
+    ]
+
+    # =========================================================================
+    # VS1 — Repeated Identical-Value Transfers
+    # =========================================================================
+    # We look at ALL inbound transactions (not just pre-deploy) because
+    # scripted funding can happen at any point.
+    vs1_mode_freq: Optional[float] = None
+    vs1_top2: Optional[float] = None
+    vs1_count = 0
+
+    if all_inbound:
+        inbound_values = [int(tx.get("value", 0)) for tx in all_inbound]
+        vs1_count = len(inbound_values)
+
+        if vs1_count >= 2:                      # need at least 2 to have a pattern
+            counter = Counter(inbound_values)
+            total = vs1_count
+
+            # Mode frequency ratio: how dominant is the single most common value?
+            most_common_val, mode_count = counter.most_common(1)[0]
+            vs1_mode_freq = mode_count / total
+
+            # Top-2 coverage: are the two most common values dominating?
+            top2_pairs = counter.most_common(2)
+            top2_sum = sum(c for _, c in top2_pairs)
+            vs1_top2 = top2_sum / total
+
+    # =========================================================================
+    # VS2 — Round-Number Funding Pattern (pre-deploy inflows only)
+    # =========================================================================
+    # Check: how many pre-deploy inflows are exact multiples of 0.5 ETH?
+    # CRITICAL: modulo must be done in ETH space, not Wei.
+    vs2_round_ratio: Optional[float] = None
+    vs2_pre_count = len(pre_deploy_inbound)
+
+    if vs2_pre_count >= 2:
+        amounts_eth = [int(tx.get("value", 0)) / ETH for tx in pre_deploy_inbound]
+        # round(..., 6) prevents floating-point noise from mis-classifying
+        # values like 0.4999999999 which should be 0.5 ETH.
+        round_count = sum(
+            1 for v in amounts_eth
+            if round(v % 0.5, 6) == 0.0
+        )
+        vs2_round_ratio = round_count / vs2_pre_count
+
+    # =========================================================================
+    # VS3 — Gas-Price Anomalies (outgoing transactions)
+    # =========================================================================
+    # Low CV of gasPrice = script hardcoded the value = not a human.
+    GWEI = 10 ** 9
+    vs3_cv: Optional[float] = None
+    vs3_round_gas: Optional[float] = None
+    vs3_gas_count = 0
+
+    gas_prices_gwei: list[float] = []
+    for tx in outgoing:
+        gp = int(tx.get("gasPrice", 0))
+        if gp > 0:
+            gas_prices_gwei.append(gp / GWEI)
+
+    vs3_gas_count = len(gas_prices_gwei)
+
+    if vs3_gas_count >= 2:
+        mean_gas = statistics.mean(gas_prices_gwei)
+        if mean_gas > 0:
+            try:
+                std_gas = statistics.stdev(gas_prices_gwei)
+            except statistics.StatisticsError:
+                std_gas = 0.0
+            vs3_cv = std_gas / mean_gas
+
+        # Integer-Gwei check: gas price is "round" if it's an exact whole Gwei
+        # round(..., 4) prevents noise from floating point conversion
+        round_gas_count = sum(
+            1 for g in gas_prices_gwei
+            if round(g % 1.0, 4) == 0.0
+        )
+        vs3_round_gas = round_gas_count / vs3_gas_count
+
+    # =========================================================================
+    # VS4 — Dusting Frequency
+    # =========================================================================
+    # Dust = outbound transfer where value < 0.0001 ETH (10^14 Wei).
+    # These are "alive pings" sent to mule wallets before the main cashout.
+    DUST_WEI = 100_000_000_000_000   # 10^14 Wei = 0.0001 ETH
+
+    vs4_out_dust = 0
+    vs4_pre_cashout_dust = 0
+    vs4_inbound_dust = 0
+    dust_dest_set: set[str] = set()
+
+    # Compute the cashout event timestamp for the pre-cashout window.
+    # If cp1_withdrawal_latency_sec is available, we need the ABSOLUTE timestamp
+    # of the first cashout. We approximate it from victim_inflow + latency.
+    # More simply: we look for the first contract-to-creator internal tx.
+    first_cashout_ts: int | None = None
+    if contract_address:
+        for tx in all_txs:
+            if (tx.get("from", "").lower() == contract_address
+                    and tx.get("to", "").lower() == addr
+                    and int(tx.get("value", 0)) > 0):
+                first_cashout_ts = int(tx.get("timeStamp", 0))
+                break
+
+    for tx in all_txs:
+        val = int(tx.get("value", 0))
+        from_a = tx.get("from", "").lower()
+        to_a = tx.get("to", "").lower()
+        ts = int(tx.get("timeStamp", 0))
+
+        if 0 < val < DUST_WEI:
+            # Outbound dust from creator
+            if from_a == addr:
+                vs4_out_dust += 1
+                dust_dest_set.add(to_a)
+                # Pre-cashout dust: within 24h window before first cashout event
+                if first_cashout_ts is not None:
+                    window_start = first_cashout_ts - 86400  # 24h
+                    if window_start <= ts <= first_cashout_ts:
+                        vs4_pre_cashout_dust += 1
+            # Inbound dust to creator (informational, not scored)
+            if to_a == addr:
+                vs4_inbound_dust += 1
+
+    # =========================================================================
+    # VS5 — Cross-Deployment Amount Consistency (single wallet, multi-deploy)
+    # =========================================================================
+    # For each deployment, find the set of unique seed amounts (pre-deploy
+    # inflows in 72h window). Then compute Jaccard between consecutive deploys.
+    vs5_jaccard: Optional[float] = None
+    vs5_dep_count = len(deploy_txs)
+
+    if len(deploy_txs) >= 2:
+        per_deploy_seed_sets: list[set[float]] = []
+
+        for dtx in deploy_txs:
+            d_ts = int(dtx.get("timeStamp", 0))
+            window_start = d_ts - (72 * 3600)
+
+            seed_amounts = {
+                round(int(tx.get("value", 0)) / ETH, 2)
+                for tx in normal_txs + internal_txs
+                if tx.get("to", "").lower() == addr
+                and tx.get("from", "").lower() != addr
+                and window_start <= int(tx.get("timeStamp", 0)) < d_ts
+                and int(tx.get("value", 0)) > 0
+            }
+            per_deploy_seed_sets.append(seed_amounts)
+
+        # Jaccard between each pair of consecutive deployment seed sets.
+        jaccard_scores: list[float] = []
+        for i in range(len(per_deploy_seed_sets) - 1):
+            a = per_deploy_seed_sets[i]
+            b = per_deploy_seed_sets[i + 1]
+            union = a | b
+            if union:
+                jaccard_scores.append(len(a & b) / len(union))
+
+        if jaccard_scores:
+            vs5_jaccard = statistics.mean(jaccard_scores)
+
+    # =========================================================================
+    # VS6 — Lifecycle Allocation Ratio + LP Operation Accounting
+    # =========================================================================
+    vs6_deploy_eth: Optional[float] = None
+    vs6_self_fund_eth: Optional[float] = None
+    vs6_cashout_eth: Optional[float] = None
+    vs6_multiplier: Optional[float] = None
+    vs6_lp_added: Optional[float] = None
+    vs6_lp_removed: Optional[float] = None
+    vs6_lp_net: Optional[float] = None
+    vs6_token_frac: Optional[float] = None
+    vs6_mint_lp_lat: Optional[int] = None
+
+    if deploy_txs and contract_address:
+        deploy_ts = int(deploy_txs[0].get("timeStamp", 0))
+
+        # Step 1: ETH attached to the deployment transaction(s)
+        # Most deployments send 0 ETH, but some seed the contract inline.
+        v_deploy_wei = sum(
+            int(tx.get("value", 0)) for tx in deploy_txs
+        )
+        vs6_deploy_eth = v_deploy_wei / ETH
+
+        # Step 2: ETH the creator sent INTO their own contract post-deploy.
+        # These are self-funding transactions (providing initial liquidity seed).
+        v_self_fund_wei = 0
+        for tx in all_txs:
+            if (tx.get("from", "").lower() == addr
+                    and tx.get("to", "").lower() == contract_address
+                    and int(tx.get("value", 0)) > 0
+                    and int(tx.get("timeStamp", 0)) >= deploy_ts):
+                v_self_fund_wei += int(tx.get("value", 0))
+        vs6_self_fund_eth = v_self_fund_wei / ETH
+
+        # Step 3: ETH the creator extracted FROM the contract.
+        # Internal txs cover contract → creator (withdraw/removeLiquidity payouts).
+        v_cashout_wei = 0
+        for tx in all_txs:
+            if (tx.get("from", "").lower() == contract_address
+                    and tx.get("to", "").lower() == addr
+                    and int(tx.get("value", 0)) > 0):
+                v_cashout_wei += int(tx.get("value", 0))
+        vs6_cashout_eth = v_cashout_wei / ETH
+
+        # Step 4: Extraction multiplier = cashout / creator's own stake.
+        # Floor at MINIMUM_STAKE_ETH to avoid division-by-zero.
+        total_invested = max(vs6_deploy_eth + vs6_self_fund_eth, _MINIMUM_STAKE_ETH)
+        vs6_multiplier = vs6_cashout_eth / total_invested
+
+        # Step 5: LP operation accounting from Uniswap function selectors.
+        # The ETH value attached to addLiquidityETH internal calls gives the
+        # amount actually locked. For removeLiquidity, the ETH returned comes
+        # via internal transactions to the creator.
+        lp_added_wei = 0
+        lp_removed_wei = 0
+        first_add_liquidity_ts: int | None = None
+
+        for tx in all_txs:
+            from_a = tx.get("from", "").lower()
+            to_a = tx.get("to", "").lower()
+            inp = tx.get("input", "").lower().lstrip("0x")
+            sel = inp[:8] if len(inp) >= 8 else ""
+            val = int(tx.get("value", 0))
+            ts  = int(tx.get("timeStamp", 0))
+
+            # addLiquidity or addLiquidityETH — creator adds ETH to a DEX pool
+            if from_a == addr and sel in _ADD_LIQUIDITY_SELECTORS and val > 0:
+                lp_added_wei += val
+                if first_add_liquidity_ts is None:
+                    first_add_liquidity_ts = ts
+
+            # removeLiquidity — ETH returned to creator from the pool
+            # These arrive as internal transactions from the DEX router
+            if to_a == addr and sel in _REMOVE_LIQUIDITY_SELECTORS and val > 0:
+                lp_removed_wei += val
+
+        if lp_added_wei > 0 or lp_removed_wei > 0:
+            vs6_lp_added   = lp_added_wei / ETH
+            vs6_lp_removed = lp_removed_wei / ETH
+            vs6_lp_net     = vs6_lp_removed - vs6_lp_added
+
+        # Step 6: Minting metrics from ERC-20 token transfer events (optional).
+        # Mint events: transfers where from == zero address.
+        # Only runs if caller provided token_txs (1 extra API call).
+        if token_txs:
+            total_minted = 0      # sum of ALL token units minted (any recipient)
+            creator_minted = 0    # token units minted directly to creator wallet
+            first_mint_ts: int | None = None
+
+            for ttx in token_txs:
+                from_addr = ttx.get("from", "").lower()
+                to_addr   = ttx.get("to", "").lower()
+                # Token amounts in the tokentx response are stored in the
+                # 'value' field as integer strings (token smallest units).
+                try:
+                    amount = int(ttx.get("value", 0))
+                except (ValueError, TypeError):
+                    amount = 0
+
+                if from_addr == _ZERO_ADDRESS and amount > 0:
+                    # This is a mint event
+                    total_minted += amount
+                    if to_addr == addr:
+                        creator_minted += amount
+                    ts = int(ttx.get("timeStamp", 0))
+                    if first_mint_ts is None:
+                        first_mint_ts = ts
+
+            # Creator's fraction of total minted supply
+            if total_minted > 0:
+                vs6_token_frac = creator_minted / total_minted
+
+            # Mint-to-addLiquidity latency (seconds)
+            # Measures how quickly creator deployed the trap after minting.
+            if first_mint_ts is not None and first_add_liquidity_ts is not None:
+                if first_add_liquidity_ts >= first_mint_ts:
+                    vs6_mint_lp_lat = first_add_liquidity_ts - first_mint_ts
+
+    # =========================================================================
+    # Return as a dict for model_copy(update={...})
+    # =========================================================================
+    return {
+        "vs1_mode_freq_ratio":         vs1_mode_freq,
+        "vs1_top2_coverage":           vs1_top2,
+        "vs1_inbound_count":           vs1_count,
+        "vs2_round_funding_ratio":     vs2_round_ratio,
+        "vs2_pre_deploy_funding_count": vs2_pre_count,
+        "vs3_cv_gas":                  vs3_cv,
+        "vs3_round_gas_ratio":         vs3_round_gas,
+        "vs3_gas_tx_count":            vs3_gas_count,
+        "vs4_outbound_dust_count":     vs4_out_dust,
+        "vs4_pre_cashout_dust_count":  vs4_pre_cashout_dust,
+        "vs4_unique_dust_destinations": len(dust_dest_set),
+        "vs4_inbound_dust_count":      vs4_inbound_dust,
+        "vs5_avg_cross_deploy_jaccard": vs5_jaccard,
+        "vs5_deployment_count_for_vs5": vs5_dep_count,
+        "vs6_v_deploy_eth":            vs6_deploy_eth,
+        "vs6_v_self_fund_eth":         vs6_self_fund_eth,
+        "vs6_v_cashout_eth":           vs6_cashout_eth,
+        "vs6_extraction_multiplier":   vs6_multiplier,
+        "vs6_lp_eth_added":            vs6_lp_added,
+        "vs6_lp_eth_removed":          vs6_lp_removed,
+        "vs6_lp_net_eth":              vs6_lp_net,
+        "vs6_creator_token_fraction":  vs6_token_frac,
+        "vs6_mint_to_lp_latency_sec":  vs6_mint_lp_lat,
     }
