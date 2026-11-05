@@ -6,7 +6,7 @@
 
 # 🕵️ Single-Agent Blockchain Investigator
 
-### *Stop Rug Pulls Before They Drain a Single Wei*
+### *Lifecycle-Aware Behavioral Threat Profiling for Ethereum Rugpull Deployers*
 
 <br/>
 
@@ -19,12 +19,12 @@
 
 <br/>
 
-> **Autonomous. Explainable. Proactive.**
-> An AI forensic agent that hunts rug pull deployers by their *preparation* behaviors — long before a liquidity pool is drained.
+> **Autonomous. Deterministic. Explainable.**
+> An AI forensic agent that hunts rugpull deployers by their *full behavioral lifecycle* — funding origin, deployment patterns, cash-out mechanics, scripting fingerprints, and dormancy cycles — long before a liquidity pool is drained.
 
 <br/>
 
-[🚀 Quick Start](#-quick-start) · [🧠 How It Works](#-how-it-works) · [⚖️ Detection Rules](#️-the-20-rule-detection-engine) · [🏗️ Architecture](#️-architecture) · [🔬 Research Tools](#-research--benchmarking-tools) · [🛣️ Roadmap](#️-roadmap)
+[🚀 Quick Start](#-quick-start) · [🧠 How It Works](#-how-it-works) · [⚖️ Detection Rules](#️-the-29-rule-detection-engine) · [📊 Results](#-empirical-results) · [🏗️ Architecture](#️-architecture) · [🔬 Research Tools](#-research--benchmarking-tools) · [📄 UGRC Report](#-ugrc-research-report)
 
 </div>
 
@@ -32,11 +32,11 @@
 
 ## 💥 The Problem
 
-DeFi rug pulls stole **$2.7 billion** in 2023 alone. Traditional on-chain tracers only act *after* the drain — when the money is already gone, laundered through mixers, and the deployer has vanished.
+DeFi rugpulls drained an estimated **\$2.8 billion** between 2021 and 2023. Traditional on-chain tracers only act *after* the drain — when the money is already gone, routed through mixers, and the deployer has vanished into dormancy.
 
-**We flipped the model.**
+**This project flips the model.**
 
-Instead of tracing the crime, we profile the *criminal*. By analyzing a deployer wallet's full transaction history — funding source, timing patterns, contract behavior, and post-deploy cash flow — this agent assigns a structured risk verdict backed by **20 deterministic forensic rules** and a **Gemini-powered narrative report**.
+Instead of tracing the crime after the fact, the system profiles the *deployer* across their full operational lifecycle — from initial wallet creation and seed funding, through contract deployment, liquidity extraction, and post-exploit dormancy. The result is a **29-rule deterministic forensic engine** that flags **93.3% of confirmed rugpull creators** with no machine learning, and classifies **67.8% of them before the first drain event** using only pre-exploit preparation and funding provenance signals.
 
 ---
 
@@ -48,20 +48,20 @@ Instead of tracing the crime, we profile the *criminal*. By analyzing a deployer
 
 <br/>
 
-The system operates in three simultaneous forensic layers:
+The system operates across **five sequential forensic layers** spanning the complete temporal lifecycle of a rugpull campaign:
 
-### Layer 1 — Pre-Deploy Behavioral Triage
-Examines the *creator wallet* before and during contract deployment.
+### Layer 1 — Pre-Deployment Behavioral Dynamics
+Examines the creator wallet between initial funding and the first contract deployment.
 
-| Signal | What It Catches |
-|--------|-----------------|
-| 🔥 **Burner Wallet Age** | Wallet created minutes before deployment — classic burner pattern |
-| 🤖 **Scripted Funding CV** | Mathematically proves automated funding via Coefficient of Variation |
-| 🧪 **Missing Dry-Run** | Deployers who never tested on testnet — directly to mainnet malice |
-| 📦 **High Deploy Volume** | Serial deployers launching mass-spam contracts |
-| 🔑 **Ownership Transfer** | Immediate renouncement or suspicious multi-hop handoff post-deploy |
+| Signal | Threshold | What It Catches |
+|--------|-----------|-----------------|
+| 🔥 **Extreme Burner Wallet** (`RUG-001`) | Wallet age < 15 min | Account created and immediately used to deploy |
+| 🤖 **Scripted Funding CV** (`RUG-002`) | CV ≤ 0.9956, ≥3 inbounds | Automated, bot-driven capital injection at uniform intervals |
+| 📦 **Secondary Rapid Deployment** (`RUG-NEW-A`) | 2nd contract < 60 min after 1st | Auxiliary locker/router contract deployed alongside primary scam |
+| 🔑 **Rapid Ownership Transfer** (`RUG-NEW-B`) | Renounce within 48h | Fake decentralization to obscure drain access |
+| 🧬 **Bytecode Template Cloning** (`RUG-F7`) | Size similarity > 95% | Cloned scam contract templates reused across campaigns |
 
-### Layer 2 — Funding Provenance Graphing
+### Layer 2 — Funding Provenance and Graph Topology
 
 <div align="center">
 <img src="docs/funding_graph.png" alt="Funding Provenance Network Graph" width="85%"/>
@@ -69,79 +69,90 @@ Examines the *creator wallet* before and during contract deployment.
 
 <br/>
 
-Malicious actors are backed by syndicates. Our **FunderGraph** engine builds a persistent SQLite network graph to expose them:
+Traces the upstream origin of seed capital via recursive multi-hop graph traversal to expose syndicate co-funding infrastructure:
 
-| Rule | Signal | Severity |
-|------|--------|----------|
-| `RUG-FP1` | First inbound ETH from Mixer / Tornado Cash | 🔴 HIGH |
-| `RUG-FP2` | ≥4 hops from any known exchange/entity | 🔴 HIGH |
-| `RUG-FP3` | ≥50% of seed capital is "fresh" (never touched known entity) | 🔴 HIGH → CRITICAL |
-| `RUG-FP4` | Multiple deployer wallets share the same upstream funder | 🚨 CRITICAL |
-| `RUG-FP5` | Structuring detected — abnormal seed amounts to avoid detection | 🟡 MEDIUM |
+| Rule | Signal | Trigger Rate (N=90) | Severity |
+|------|--------|--------------------|----------|
+| `RUG-FP4` | Mixer / Tornado Cash / bridge seed ingress | **61.1%** (55/90) | 🚨 CRITICAL +40 |
+| `RUG-FP5` | Shared upstream funder across deployer wallets | **58.9%** (53/90) | 🔴 HIGH +25 |
+| `RUG-FP2` | Seed capital from depth ≥ 3 proxy hops | — | 🔴 HIGH +20 |
+| `RUG-FP3` | ≥ 50% seed from wallets created < 24h prior | — | 🔴 HIGH +20 |
+| `RUG-FP8` | Upstream ancestor Jaccard similarity > 0.50 | — | 🔴 HIGH +20 |
 
-### Layer 3 — Post-Deploy Cash-Out Pattern Analysis
+> Over **58.9% of investigated rugpull wallets share a common upstream funder** with at least one other known malicious deployer, confirming organized syndicate infrastructure.
 
-Seven rules that mathematically fingerprint how proceeds are extracted *after* deployment:
+### Layer 3 — Cash-Out Strategy and Liquidity Extraction
 
-| Rule | Signal | Severity |
-|------|--------|----------|
-| `POST-1` | Liquidity drained within seconds/minutes of LP creation | 🔴 HIGH → CRITICAL |
-| `POST-2` | Full treasury sweep — wallet balance → near zero | 🔴 HIGH → CRITICAL |
-| `POST-3` | Fragmentation layering: proceeds split into many micro-sends | 🔴 HIGH |
-| `POST-4` | Destination diversity scatter — mule wallet dispersion | 🔴 HIGH → CRITICAL |
-| `POST-5` | CEX / Mixer concentration of exit flows | 🔴 HIGH → CRITICAL |
-| `POST-6` | Token swap or LP dump before cash-out | 🔴 HIGH → CRITICAL |
-| `POST-7` | Retained proceeds near zero — full drainage confirmed | 🔴 HIGH → CRITICAL |
+Merges normal transactions with **internal EVM traces** (`CALL`/`DELEGATECALL`/`SELFDESTRUCT`) to capture smart-contract-mediated ETH sweeps that standard scrapers miss:
+
+| Rule | Signal | Trigger Rate (N=90) | Severity |
+|------|--------|--------------------|----------|
+| `RUG-CP4` | Mule wallet fan-out: ≥10 fresh destinations | **50.0%** (45/90) | 🚨 CRITICAL +40 |
+| `RUG-CP6` | AMM liquidity removal + swap within 24h | **15.6%** (14/90) | 🔴 HIGH +25 |
+| `RUG-CP7` | Retained victim proceeds < 1% | **8.9%** (8/90) | 🚨 CRITICAL +40 |
+| `RUG-CP2` | Treasury sweep drain ratio ≥ 90% | **5.6%** (5/90) | 🚨 CRITICAL +40 |
+| `RUG-CP5` | Direct proceeds routing to mixer | **4.4%** (4/90) | 🚨 CRITICAL +40 |
+| `RUG-CP3` | Fragmentation / structured layering | **0.0%** (0/90) | *Null — velocity preferred* |
+
+> **CP3 (fragmentation/layering) registered zero triggers** — rugpull operators overwhelmingly prioritize extraction *velocity* over laundering sophistication, moving capital en masse to mule wallets before white-hat intervention.
+
+### Layer 4 — Value-Transfer Semantics and Scripting Fingerprints
+
+Isolates mechanical artifacts imprinted by automated deployment and extraction scripts:
+
+| Rule | Signal | Trigger Rate (N=90) | Severity |
+|------|--------|--------------------|----------|
+| `RUG-VS-6` | Extraction multiplier ≥ 50× (LP drain economics) | **54.4%** (49/90) | 🚨 CRITICAL +40 |
+| `RUG-VS-5` | Cross-deployment seed amount Jaccard > 0.80 | **23.3%** (21/90) | 🟡 MEDIUM +10 |
+| `RUG-VS-1` | Inbound value mode frequency ≥ 60% (sybil bots) | **7.8%** (7/90) | 🔴 HIGH +20 |
+| `RUG-VS-4` | Pre-cashout micro-dusting pings (≥5 within 24h) | **6.7%** (6/90) | 🔴 HIGH +20 |
+| `RUG-VS-3` | Gas-price uniformity anomaly (CV < 0.05) | **1.1%** (1/90) | 🟡 MEDIUM +10 |
+| `RUG-VS-2` | Round-number seed funding (mod 0.5 ETH = 0) | **0.0%** (0/90) | *Low incidence* |
+
+### Layer 5 — Exit Dynamics and Post-Exploit Dormancy
+
+Tracks the post-operational phase to quantify serial abuse and the "burner-phone" reactivation pattern:
+
+| Rule | Signal | Trigger Rate (N=90) | Severity |
+|------|--------|--------------------|----------|
+| `RUG-EXIT-2` | Cyclical dormancy reactivation ≥ 30 days | **67.8%** (61/90) | 🚨 CRITICAL +30 |
+| `EXIT-META` | Operational retirement likelihood score | **66.7%** (60/90) | INFO |
+
+> **67.8% of confirmed rugpull operators exhibit serial cyclical reuse** — wallets are silenced after each exploit for months, then reactivated for subsequent campaigns. These are *not* single-use burner accounts.
 
 ---
 
-## 🏗️ Architecture
+## 📊 Empirical Results
 
-```mermaid
-graph TD
-    User([User]) -->|HTTP REST| API
+Evaluated against a ground-truth cohort of **90 confirmed Ethereum rugpull creator wallets** and **18 genuine developer controls** (108 wallets total, all from publicly accessible on-chain data):
 
-    subgraph FB [FastAPI Backend]
-        API[FastAPI App] --> Agent
-    end
-
-    subgraph LA [LangGraph Agent - Gemini 2.0 Flash]
-        Agent[Session Manager] --> Planner[Gemini Planner]
-        Planner --> Profiler[Etherscan Profiler]
-        Profiler --> TraceScorer[Trace Scorer]
-        TraceScorer --> Detector[Anomaly Detector]
-        Detector --> Condenser[State Condenser]
-        Condenser --> Reporter[Gemini Reporter]
-        Reporter --> DB[(SQLite Memory)]
-    end
-
-    subgraph FE [Forensic Engines]
-        Rugpull[Rugpull Engine - 20 rules]
-        FGraph[FunderGraph - SQLite]
-        RiskScorer[Risk Scorer - 6 verdicts]
-        Rugpull -.->|builds| FGraph
-        FGraph -.->|scores| RiskScorer
-    end
-
-    subgraph AR [7 Anomaly Detection Rules]
-        R1[High Fan-Out]
-        R2[Dormant Activation]
-        R3[Activity Burst]
-        R4[Large Transfer]
-        R5[Rapid Transfer]
-        R6[New Wallet Interaction]
-        R7[Round Numbers]
-    end
-
-    Detector -.->|triggers| Rugpull
-    Detector -.->|evaluates| R1
-    Detector -.->|evaluates| R2
-    Detector -.->|evaluates| R4
+```
+Overall Detection Rate (S ≥ 25):          93.3%  (84 / 90 wallets)
+Pre-exploit flagging (Layers 1–2 only):   67.8%  HIGH/STRONG classification
+Mixer/bridge co-funding prevalence:       61.1%  (55 / 90 wallets)
+Syndicate co-funding prevalence:          58.9%  (53 / 90 wallets)
+Serial dormancy-reactivation rate:        67.8%  (61 / 90 wallets)
+Median composite threat score:            80.0 / 100
 ```
 
+**Verdict distribution across the malicious cohort (N=90, Layers 1–2):**
+
+```
+HIGH_CONFIDENCE [███████████████████████████████████████████████████] 61.1% (55)
+STRONG_PATTERN  [██████] 6.7% (6)
+MODERATE_PAT.   [████] 4.4% (4)
+WEAK_PATTERN    [██████████] 11.1% (10)
+CLEAN           [█████████████] 14.4% (13)
+INSUFFICIENT    [██] 2.2% (2)
+```
+
+**Two hypotheses empirically refuted:**
+- ❌ **"Dry-run on mainnet" heuristic** — 0% of malicious wallets had pre-deploy reverted transactions. Both attackers and legitimate developers test on local forks/testnets exclusively.
+- ❌ **"Deployment burstiness = malicious"** — Legitimate protocol engineers exhibit *higher* burst deployment counts (proxy + implementation + registry + governance in rapid succession). Scammers execute isolated single deployments.
+
 ---
 
-## 📊 Verdict System
+## 📋 Verdict System
 
 The engine outputs one of **6 structured verdicts**, each backed by a scored evidence chain:
 
@@ -149,16 +160,64 @@ The engine outputs one of **6 structured verdicts**, each backed by a scored evi
 ╔══════════════════════════════════════════════════════════════════╗
 ║  VERDICT                          COLOUR    SCORE RANGE          ║
 ╠══════════════════════════════════════════════════════════════════╣
-║  ✅ CLEAN                          GREEN     0 – 20              ║
-║  ℹ️  INSUFFICIENT_DATA             CYAN      N/A (sparse wallet) ║
-║  ⚠️  WEAK_PATTERN                  YELLOW    21 – 40             ║
-║  🟠 MODERATE_PATTERN               ORANGE    41 – 60             ║
-║  🔴 STRONG_PATTERN                 RED       61 – 80             ║
-║  🚨 HIGH_CONFIDENCE_RUGPULL        BRIGHT RED 81+                ║
+║  ✅ CLEAN                          GREEN     0 – 19              ║
+║  ℹ️  INSUFFICIENT_HISTORY          CYAN      N/A (sparse wallet) ║
+║  ⚠️  WEAK_PATTERN                  YELLOW    20 – 39             ║
+║  🟠 MODERATE_PATTERN               ORANGE    40 – 59             ║
+║  🔴 STRONG_PATTERN                 RED       60 – 79             ║
+║  🚨 HIGH_CONFIDENCE_RUGPULL        BRIGHT RED  80+               ║
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
-Every verdict is accompanied by a Gemini-generated **Observation → Evidence → Reasoning** chain — no black boxes.
+Every verdict is accompanied by a Gemini-generated **Observation → Evidence → Reasoning** narrative — fully auditable, no black boxes.
+
+---
+
+## 🏗️ Architecture
+
+```mermaid
+graph TD
+    User([User / Analyst]) -->|HTTP REST| API
+
+    subgraph FB [FastAPI Backend]
+        API[FastAPI App] --> Agent
+    end
+
+    subgraph LA [LangGraph Agent — Gemini 2.0 Flash]
+        Agent[Session Manager] --> Planner[Gemini Planner]
+        Planner --> Profiler[Etherscan Profiler]
+        Profiler --> TraceScorer[Trace + Internal Merger]
+        TraceScorer --> Detector[BTP Engine Dispatcher]
+        Detector --> Condenser[State Condenser]
+        Condenser --> Reporter[Gemini Reporter]
+        Reporter --> DB[(SQLite Memory)]
+    end
+
+    subgraph FE [5-Layer Forensic Engine — 29 Rules]
+        L1[Layer 1: Pre-Deployment]
+        L2[Layer 2: Funding Provenance]
+        L3[Layer 3: Cash-Out Strategy]
+        L4[Layer 4: Value-Transfer Semantics]
+        L5[Layer 5: Exit & Dormancy]
+        L1 --> L2 --> L3 --> L4 --> L5
+    end
+
+    subgraph AML [Phase 1 AML Baseline — 6 Rules]
+        R1[High Fan-Out]
+        R2[Dormant Activation]
+        R3[Activity Burst]
+        R4[Large Transfer ≥10 ETH]
+        R5[Rapid Serial Transfers]
+        R6[Round-Number Structuring]
+    end
+
+    Detector -.- FE
+    Detector -.- AML
+```
+
+The pipeline runs in two modes:
+- **Phase 1 (AML Baseline):** 6 general-purpose anti-money-laundering pattern rules applied to any Ethereum wallet via one-hop transaction graph analysis.
+- **Phase 2 (BTP Engine):** Full 29-rule lifecycle profiling of smart contract deployer EOAs, using both normal transactions and internal EVM traces.
 
 ---
 
@@ -198,63 +257,82 @@ No Node.js, no build step — just open and go.
 python test_rugpull.py 0xYourTargetAddress --fetch
 ```
 
-**6. Docker (Optional)**
+**6. Batch Feature Extraction (108-wallet matrix)**
+```bash
+python extract_all_features_csv.py
+# Outputs: full_feature_matrix.csv (108 wallets × 68 features)
+```
+
+**7. Docker (Optional)**
 ```bash
 docker-compose up --build
 ```
 
 ---
 
-## ⚖️ The 20-Rule Detection Engine
+## ⚖️ The 29-Rule Detection Engine
 
 <details>
 <summary><b>📋 Click to expand — Full Rule Register</b></summary>
 
-### 🔴 Pre-Deploy Rules (Behavioral)
+### 🔴 Layer 1: Pre-Deployment Rules
 
-| ID | Name | Feature | Severity |
-|----|------|---------|----------|
-| `RUG-001` | Extreme Burner Wallet | Wallet age < 15 min before deploy | LOW |
-| `RUG-002` | Scripted Funding CV | Funding gap CV below human threshold | HIGH / MEDIUM |
-| `RUG-003` | Dry-Run Activity | Zero testnet deployments detected | HIGH / MEDIUM |
-| `RUG-004` | High Deployment Volume | > threshold contracts deployed | HIGH / MEDIUM |
-| `RUG-005` | Scripted Timing Entropy | Inter-tx entropy below threshold | LOW |
-| `RUG-NEW-A` | Single-Deploy Burner | Exactly 1 deployment, then wallet goes dark | MEDIUM |
-| `RUG-NEW-B` | Ownership Transfer | Multi-hop transfer immediately post-deploy | HIGH |
+| Rule ID | Name | Invariant / Trigger | Severity | Score |
+|---------|------|---------------------|----------|-------|
+| `RUG-001` | Extreme Burner Wallet | Wallet age < 15 min before deploy | CRITICAL | +40 |
+| `RUG-002` | Scripted Funding Cadence | Funding CV ≤ 0.9956 with ≥3 inbounds | HIGH | +25 |
+| `RUG-F3` | Mainnet Dry-Run Testing | Reverted pre-deploy txs ≥ 1 | LOW | +5 |
+| `RUG-F4` | Single-Contract Deployer | \|C_W\| = 1 and age > 7d | MEDIUM | +15 |
+| `RUG-F4B` | Deployment Cadence Inversion | Near-zero deployment variance | MEDIUM | +15 |
+| `RUG-F5` | Low Nonce Action Entropy | Shannon entropy H < 1.0 | LOW | +5 |
+| `RUG-F7` | Bytecode Template Cloning | Size similarity > 95% across deploys | HIGH | +20 |
+| `RUG-NEW-A` | Rapid Auxiliary Deployment | 2nd contract ≤ 60 min after 1st | HIGH | +25 |
+| `RUG-NEW-B` | Rapid Ownership Transfer | Ownership selector within 48h of deploy | HIGH | +20 |
 
-### 🕸️ Funding Provenance Rules (FP Series)
+### 🕸️ Layer 2: Funding Provenance Rules
 
-| ID | Name | Signal | Severity |
-|----|------|--------|----------|
-| `RUG-FP1` | Mixer/Bridge Origin | First inbound from Tornado Cash or bridge | HIGH |
-| `RUG-FP2` | Deep Hop Count | ≥4 hops from any named entity | HIGH |
-| `RUG-FP3` | Fresh Capital Fraction | ≥50% seed capital untraceable | HIGH / CRITICAL |
-| `RUG-FP4` | Shared Upstream Funders | Cross-wallet coordination detected | CRITICAL |
-| `RUG-FP5` | Structuring Detection | Abnormal seed amounts (smurfing) | MEDIUM |
+| Rule ID | Name | Invariant / Trigger | Severity | Score |
+|---------|------|---------------------|----------|-------|
+| `RUG-FP1` | Unverified Deployer Origin | Zero prior mainnet contract history | MEDIUM | +10 |
+| `RUG-FP2` | Recursive Seed Hop Depth | Seed from ≥ 3 proxy hops deep | HIGH | +20 |
+| `RUG-FP3` | Fresh Seed Wallet Origin | Seed wallet age < 24h at funding time | HIGH | +20 |
+| `RUG-FP4` | Mixer or Bridge Funding Ingress | Funder ∈ Mixers ∪ Bridges | CRITICAL | +40 |
+| `RUG-FP5` | Syndicate Co-Funding Overlap | Upstream funder overlaps known scam cluster | HIGH | +25 |
+| `RUG-FP6` | Fixed-Gas Seed Staging | Seed = compiled deployment gas cost | MEDIUM | +10 |
+| `RUG-FP7` | Gas-Adjusted Seed Outlier | Standardized seed > 3σ from daily mean | LOW | +5 |
+| `RUG-FP8` | Upstream Ancestor Overlap | Funding tree Jaccard similarity J > 0.50 | HIGH | +20 |
 
-### 💸 Post-Deploy Cash-Out Rules (POST Series)
+### 💸 Layer 3: Cash-Out Strategy Rules
 
-| ID | Name | Signal | Severity |
-|----|------|--------|----------|
-| `RUG-POST-1` | Immediate Liquidity Drain | LP drained within minutes of creation | HIGH / CRITICAL |
-| `RUG-POST-2` | Treasury Sweep | Full balance withdrawal pattern | MEDIUM / CRITICAL |
-| `RUG-POST-3` | Fragmentation / Layering | High outflow CV (scripted splitting) | HIGH |
-| `RUG-POST-4` | Mule Scatter | Destination diversity beyond normal | MEDIUM / CRITICAL |
-| `RUG-POST-5` | Exchange/Mixer Exit | Proceeds concentrated to CEX/mixer | HIGH / CRITICAL |
-| `RUG-POST-6` | Swap-Before-Cashout | Token swap / LP dump before exit | HIGH / CRITICAL |
-| `RUG-POST-7` | Near-Zero Retained | < threshold ETH retained post-cashout | HIGH / CRITICAL |
+| Rule ID | Name | Invariant / Trigger | Severity | Score |
+|---------|------|---------------------|----------|-------|
+| `RUG-CP1` | Immediate Smash-and-Grab | Drain < 1h after first victim deposit | CRITICAL | +40 |
+| `RUG-CP2` | Treasury Sweep Drain Ratio | R_drain ≥ 90% across ≤ 2 txs in 24h | CRITICAL | +40 |
+| `RUG-CP3` | Outflow Fragmentation CV | CV(v_out) > 1.5 ∧ round-ratio > 0.50 | MEDIUM | +15 |
+| `RUG-CP4` | Fresh Mule Wallet Fan-Out | ≥10 destinations, > 60% age < 7d | CRITICAL | +40 |
+| `RUG-CP5` | Direct Mixer Liquidation | Extracted proceeds → mixer hot wallet | CRITICAL | +40 |
+| `RUG-CP6` | AMM Removal + Immediate Swap | AMM selector + swap within 24h | HIGH | +25 |
+| `RUG-CP7` | Depleted Ecosystem Balance | Retained proceeds ratio < 1% | CRITICAL | +40 |
 
-### 🔍 Anomaly Detection Rules (On-Chain Behavior)
+### 🔍 Layer 4: Value-Transfer Semantics Rules
 
-| ID | Name | Signal |
-|----|------|--------|
-| `ANOM-001` | High Fan-Out | Burst sends to many new wallets |
-| `ANOM-002` | Dormant Activation | Wallet inactive for months, then suddenly active |
-| `ANOM-003` | Activity Burst | Spike in tx frequency above baseline |
-| `ANOM-004` | Large Transfer | Single transfer > threshold ETH |
-| `ANOM-005` | Rapid Transfer | Inbound → outbound within seconds |
-| `ANOM-006` | New Wallet Interaction | Sends to brand-new (< 24hr old) wallets |
-| `ANOM-007` | Round Numbers | Statistically improbable round-number transfers |
+| Rule ID | Name | Invariant / Trigger | Severity | Score |
+|---------|------|---------------------|----------|-------|
+| `RUG-VS-1` | Inbound Value Mode Repetition | Mode frequency ≥ 60% with ≥5 inbounds | HIGH | +20 |
+| `RUG-VS-2` | Round-Number Seed Funding | (v / 10¹⁸) mod 0.5 = 0 ratio ≥ 80% | HIGH | +20 |
+| `RUG-VS-3` | Gas-Price Uniformity Scripting | CV(gas_price) < 0.05 | MEDIUM | +10 |
+| `RUG-VS-4` | Pre-Cashout Micro-Dusting | ≥5 txs with v ≤ 10¹⁴ Wei within 24h | HIGH | +20 |
+| `RUG-VS-5` | Seed Amount Set Jaccard | Cross-deployment inflow Jaccard J > 0.80 | MEDIUM | +10 |
+| `RUG-VS-6` | Extreme Extraction Multiplier | M = V_out / max(V_seed, 10¹⁵) ≥ 50× | CRITICAL | +40 |
+
+### 💤 Layer 5: Exit Dynamics and Dormancy Rules
+
+| Rule ID | Name | Invariant / Trigger | Severity | Score |
+|---------|------|---------------------|----------|-------|
+| `RUG-EXIT-1` | Prolonged Post-Rug Silence | Silence > 30d ∧ retained < 1% ∧ ratio > 0.5 | HIGH | +20 |
+| `RUG-EXIT-2` | Cyclical Burner Reactivation | ≥2 dormancy gaps ≥ 30d between campaigns | CRITICAL | +30 |
+| `RUG-EXIT-4` | Fresh Bulk Proxy Migration | Single transfer ≥ 30% victim inflow → dest < 24h old | CRITICAL | +40 |
+| `EXIT-META` | Operational Retirement Score | Heuristic S_retire ∈ [0, 0.99] if S ≥ 36 | INFO | +0 |
 
 </details>
 
@@ -266,13 +344,13 @@ The project ships a **zero-dependency glassmorphism web dashboard** — no React
 
 - 🌑 **Dark Mode First** — neon cyan/purple glassmorphic design
 - 🔄 **Real-Time Polling** — watch the agent reason live step-by-step
-- 📋 **Structured Reports** — Observation / Evidence / Reasoning chains rendered beautifully
+- 📋 **Structured Reports** — Observation / Evidence / Reasoning chains rendered clearly
 - 📱 **Responsive** — works on desktop and tablet
 
 ```
 frontend/
 ├── index.html   ← Single-file app shell
-├── app.js       ← Polling engine + report renderer  
+├── app.js       ← Polling engine + report renderer
 └── styles.css   ← Glassmorphism CSS design system
 ```
 
@@ -280,26 +358,31 @@ frontend/
 
 ## 🔬 Research & Benchmarking Tools
 
-The framework ships production-quality benchmarking CLI tools used to validate the 20-rule system against **92 confirmed rug pull wallets** and **18 genuine deployer wallets**:
-
 ```bash
-# Run the full 110-wallet validation dataset
-python test_full_dataset.py --fetch
+# Single address — full 29-rule lifecycle report
+python test_rugpull.py 0xYourTargetAddress --fetch
 
-# Deep single-address report with all funding provenance hops
+# Run known rugpull / genuine addresses for sanity check
+python test_rugpull.py --known
+
+# Deep funding provenance traversal (up to 3 hops)
 python test_funding_provenance.py 0xABC...
 
-# Live batch scoring (reads from eoa_addresses.txt)
-python rugpull_live_batch.py
+# Layer 5 exit & dormancy feature extraction test
+python test_exit_features.py 0xABC...
 
-# Test LangGraph full agent pipeline
+# Layer 4 value-transfer semantics test
+python test_vs_features.py 0xABC...
+
+# Full 108-wallet feature matrix extraction
+python extract_all_features_csv.py
+# → full_feature_matrix.csv (108 rows × 68 features)
+
+# LangGraph full agent pipeline
 python test_langgraph.py 0xABC...
 
-# Interactive CLI — single address, full report
-python test_rugpull.py 0xABC... --fetch
-
-# Run known rugpull / genuine addresses for quick sanity check
-python test_rugpull.py --known
+# Live batch scoring (reads addresses from eoa_addresses.txt)
+python rugpull_live_batch.py
 ```
 
 ---
@@ -319,23 +402,36 @@ blockchain-investigator-project/
 │   │
 │   ├── forensics/
 │   │   ├── rugpull/
-│   │   │   ├── engine.py         # Orchestrates all 20 rules
-│   │   │   ├── extractor.py      # Feature vector extraction
-│   │   │   ├── rules.py          # All 20 forensic rules (1350+ lines)
+│   │   │   ├── engine.py         # Orchestrates all 29 rules across 5 layers
+│   │   │   ├── extractor.py      # Feature vector extraction (Layers 1–4)
+│   │   │   ├── exit_features.py  # Layer 5: exit dynamics & dormancy
+│   │   │   ├── rules.py          # All 29 forensic rules
 │   │   │   ├── funding_graph.py  # FunderGraph SQLite engine
 │   │   │   └── scorer.py         # 6-tier verdict scoring
-│   │   └── rules/                # 7 anomaly detection rules
+│   │   └── rules/                # Phase 1 AML anomaly detection rules
 │   │
 │   ├── blockchain/               # Etherscan client, normalizer, entity DB
 │   ├── api/                      # FastAPI routers & endpoints
 │   ├── persistence/              # SQLite session storage
 │   └── main.py                   # App entrypoint
 │
+├── docs/
+│   ├── ugrc_report.md            # Full UGRC research report
+│   ├── funding_graph.png         # Funding provenance network visualization
+│   ├── rugpull_diagram.png       # Detection pipeline diagram
+│   └── hero_banner.png
+│
+├── full_feature_matrix.csv       # 108-wallet × 68-feature evaluation matrix
+├── vs_feature_report.txt         # Layer 4 VS rule trigger rate analysis
+├── vs_raw_values.csv             # Raw VS feature values for threshold calibration
+├── extract_all_features_csv.py   # Batch feature extraction script
+├── test_exit_features.py         # Layer 5 test harness
+├── test_vs_features.py           # Layer 4 test harness
+├── test_rugpull.py               # Single-address CLI tool
+├── test_full_dataset.py          # Full dataset validation runner
 ├── frontend/                     # Glassmorphism web UI
 ├── scripts/                      # Threshold derivation scripts
-├── data/                         # Known entity databases
-├── cli_utils.py                  # Shared Etherscan fetch utilities
-├── eoa_addresses.txt             # 92 confirmed rugpull addresses
+├── data/                         # Known entity databases (mixers, bridges, CEXes)
 ├── docker-compose.yml
 └── pyproject.toml
 ```
@@ -347,37 +443,49 @@ blockchain-investigator-project/
 | Phase | Status | Feature |
 |-------|--------|---------|
 | Phase 1 | ✅ Done | Infrastructure — FastAPI, SQLite, Logging |
-| Phase 2 | ✅ Done | Blockchain Data Layer — Etherscan v2, Normalizer |
-| Phase 3 | ✅ Done | LangGraph Agent — 6-node pipeline, 7 anomaly rules |
-| Phase 4 | ✅ Done | Rugpull Engine — 7 pre-deploy behavioral rules |
-| Phase 5 | ✅ Done | Funding Provenance — FunderGraph, 5 FP rules |
-| Phase 6 | ✅ Done | Post-Deploy Analysis — 7 cash-out pattern rules |
-| Phase 7 | ✅ Done | Glassmorphism Frontend UI |
-| Phase 8 | ✅ Done | State Condenser — context-safe LLM boundary management |
-| Phase 9 | 🔲 Planned | WebSocket live streaming of agent thought process |
-| Phase 10 | 🔲 Planned | Token/ERC-20 transfer analysis (not just ETH) |
-| Phase 11 | 🔲 Planned | Multi-Agent expansion — AML Compliance Agent |
-| Phase 12 | 🔲 Planned | Neo4j Knowledge Graph for cross-investigation linking |
+| Phase 2 | ✅ Done | Blockchain Data Layer — Etherscan v2, internal trace merger |
+| Phase 3 | ✅ Done | LangGraph Agent — 6-node pipeline, Phase 1 AML baseline (6 rules) |
+| Phase 4 | ✅ Done | Layer 1 Pre-Deploy Rules — warmup latency, funding CV, ownership transfer |
+| Phase 5 | ✅ Done | Layer 2 Funding Provenance — FunderGraph, mixer ingress, syndicate co-funding |
+| Phase 6 | ✅ Done | Layer 3 Cash-Out Strategy — dual-stream trace reconciliation, 7 rules |
+| Phase 7 | ✅ Done | Layer 4 Value-Transfer Semantics — scripting fingerprints, extraction multiplier |
+| Phase 8 | ✅ Done | Layer 5 Exit & Dormancy — cyclical reactivation, retirement likelihood |
+| Phase 9 | ✅ Done | Full Evaluation — 108-wallet feature matrix, 93.3% detection rate |
+| Phase 10 | ✅ Done | Glassmorphism Frontend UI + State Condenser |
+| Phase 11 | 🔲 Planned | Multi-chain generalization (BNB Chain, Arbitrum) |
+| Phase 12 | 🔲 Planned | Graph Neural Network layer over funding provenance (Ferretti et al., 2024) |
+| Phase 13 | 🔲 Planned | Archive node ingestion via self-hosted Erigon / Reth JSON-RPC |
+
+---
+
+## 📄 UGRC Research Report
+
+The full academic write-up documenting the research methodology, feature design rationale, empirical results, and behavioral discoveries is available in [`docs/ugrc_report.md`](docs/ugrc_report.md).
+
+**Key findings documented in the report:**
+- 93.3% detection rate on 90 confirmed Ethereum rugpull creator wallets
+- 67.8% pre-exploit classification using funding provenance signals alone
+- Empirical refutation of the "mainnet dry-run" forensic heuristic
+- Discovery of inverse deployment burstiness correlation
+- Quantitative confirmation of serial dormancy-reactivation ("burner-phone") pattern across 67.8% of operators
+- Consolidated 108-wallet × 68-feature evaluation matrix (`full_feature_matrix.csv`)
+
+Feature design is grounded in the behavioral taxonomy of **Sharma, Agarwal, and Shukla (2023)** — *"Understanding Rug Pulls: An In-depth Behavioral Analysis of Fraudulent NFT Creators"*, ACM Transactions on the Web, DOI: [10.1145/3623376](https://doi.org/10.1145/3623376).
 
 ---
 
 ## 📚 Academic Context
 
-Designed from the ground up for the **Multi-Agent Blockchain Forensics Research Programme**. The architecture prioritizes **Explainable AI (XAI)** over black-box ML predictions — every finding mandates a structured `Observation → Evidence → Reasoning` chain that is fully auditable.
+Built as part of an **Undergraduate Research Course (UGRC)** at IIT Madras (Jul–Nov 2026), supervised by Prof. John Augustine. The architecture prioritizes **Explainable AI (XAI)** over black-box ML predictions — every flagged rule produces an auditable `Observation → Evidence → Reasoning` chain traceable to specific transaction hashes, timestamps, and ETH values.
 
-The 20-rule system was calibrated empirically against a labeled dataset of **92 rug pull EOA creators** and **18 genuine deployers**, with thresholds derived via statistical distribution analysis (see `scripts/derive_rugpull_thresholds_v2.py`).
-
-Features intentionally **not triggered** (hypotheses invalidated by data):
-- `F7` within-wallet similarity — genuine deployers score *higher* than rug pulls
-- `F4` burstiness — same inversion
-- `F5` nonce entropy — statistically too weak (Δ = 0.09 bits)
+The 29-rule system is fully deterministic: no stochastic classifiers, no LLM in the detection path. The LangGraph agent is used only for narrative synthesis after the mathematical verdict has been computed.
 
 **If you use this in research, please cite:**
 ```bibtex
-@software{blockchain_investigator_2025,
-  title  = {Single-Agent Blockchain Investigator},
-  author = {Dyno Dr},
-  year   = {2025},
+@software{blockchain_investigator_2026,
+  title  = {Single-Agent Blockchain Investigator: Lifecycle-Aware Behavioral Threat Profiling for Ethereum Rugpull Deployers},
+  author = {Santhosh D R},
+  year   = {2026},
   url    = {https://github.com/dyno-dr/single-agent-blockchain-investigator}
 }
 ```
@@ -386,7 +494,7 @@ Features intentionally **not triggered** (hypotheses invalidated by data):
 
 ## 🤝 Contributing
 
-Contributions welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first. Security disclosures: see [SECURITY.md](SECURITY.md).
+Contributions welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) first. Security disclosures: see [SECURITY.md](SECURITY.md).
 
 ---
 
@@ -394,7 +502,7 @@ Contributions welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first. Sec
 
 **MIT License** · Built for research · Designed for extensibility
 
-*Agent Zero of a multi-agent future.*
+*Phase 1 of a lifecycle-aware agentic forensics stack.*
 
 <br/>
 
